@@ -1,0 +1,146 @@
+import { useState } from 'react';
+import { CreditCard, Building2, Download, Play, AlertTriangle } from 'lucide-react';
+import UploadCard from '../components/UploadCard';
+import MapeadorColunas from '../components/MapeadorColunas';
+import TabelaResultado from '../components/TabelaResultado';
+import { conciliarDespesas, previewColunas, exportarRelatorio } from '../api';
+
+const CAMPOS_ERP = [
+  { key: 'data', label: 'Coluna de Data' },
+  { key: 'descricao', label: 'Coluna de Descrição' },
+  { key: 'valor', label: 'Coluna de Valor Liquidado' },
+  { key: 'valor_fallback', label: 'Coluna de Valor da Conta' },
+  { key: 'numero_fatura', label: 'Nº da Fatura / Referência' },
+  { key: 'status', label: 'Coluna de Status' },
+];
+
+export default function DespesasPage() {
+  const [fatura, setFatura] = useState(null);
+  const [erp, setErp] = useState(null);
+  const [periodoMes, setPeriodoMes] = useState('');
+  const [colunasErp, setColunasErp] = useState([]);
+  const [mapeamento, setMapeamento] = useState({});
+  const [resultado, setResultado] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
+
+  async function handleErpUpload(arquivo) {
+    setErp(arquivo);
+    try {
+      const { colunas } = await previewColunas(arquivo, 'erp_pagar');
+      setColunasErp(colunas);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function handleConciliar() {
+    if (!fatura || !erp) { setErro('Envie os dois arquivos antes de conciliar.'); return; }
+    setErro('');
+    setLoading(true);
+    try {
+      const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes });
+      setResultado(res);
+    } catch (e) {
+      setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const r = resultado?.resumo;
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Conciliação de Despesas</h2>
+      <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>
+        Fatura do cartão corporativo vs ERP — Contas a Pagar
+      </p>
+
+      {/* Upload */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+        <UploadCard titulo="Fatura do Cartão" subtitulo="CSV ou Excel da fatura" icone={CreditCard}
+          arquivo={fatura} onArquivo={setFatura} />
+        <UploadCard titulo="ERP — Contas a Pagar" subtitulo="Exportação do ERP" icone={Building2}
+          arquivo={erp} onArquivo={handleErpUpload} />
+      </div>
+
+      {/* Mapeador */}
+      {colunasErp.length > 0 && (
+        <MapeadorColunas colunas={colunasErp} mapeamento={mapeamento}
+          onChange={setMapeamento} campos={CAMPOS_ERP} />
+      )}
+
+      {/* Período e ação */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+        <div>
+          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
+          <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }} />
+        </div>
+        <button onClick={handleConciliar} disabled={loading}
+          style={{ marginTop: 20, padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Play size={15} /> {loading ? 'Processando…' : 'Executar Conciliação'}
+        </button>
+      </div>
+
+      {erro && (
+        <div style={{ background: '#FCEBEB', color: '#A32D2D', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, display: 'flex', gap: 8 }}>
+          <AlertTriangle size={16} /> {erro}
+        </div>
+      )}
+
+      {/* Resultado */}
+      {resultado && r && (
+        <div style={{ marginTop: 24 }}>
+          {/* Métricas */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              { label: 'Total analisado', value: r.total_itens, color: '#378ADD' },
+              { label: 'Conciliados', value: r.conciliados, color: '#1D9E75' },
+              { label: 'Sem ERP', value: r.sem_erp, color: '#E24B4A' },
+              { label: 'Sem fatura', value: r.sem_fatura, color: '#BA7517' },
+            ].map(m => (
+              <div key={m.label} style={{ background: '#F7F7FB', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>{m.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: m.color }}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totais */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              { label: 'Total fatura', value: `R$ ${r.total_fatura?.toFixed(2)}` },
+              { label: 'Total ERP', value: `R$ ${r.total_erp?.toFixed(2)}` },
+              { label: 'Diferença', value: `R$ ${r.diferenca?.toFixed(2)}`, destaque: r.diferenca !== 0 },
+            ].map(m => (
+              <div key={m.label} style={{ background: m.destaque ? '#FEF3E2' : '#F7F7FB', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: '#888' }}>{m.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2, color: m.destaque ? '#8A4A00' : '#333' }}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Alerta encargos */}
+          {r.total_encargos_pendentes > 0 && (
+            <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#5A3200' }}>
+              ⚠️ <strong>Encargos não lançados no ERP:</strong> R$ {r.total_encargos_pendentes?.toFixed(2)} pendente de lançamento
+            </div>
+          )}
+
+          {/* Tabela */}
+          <TabelaResultado itens={resultado.itens} modo="despesas" />
+
+          {/* Exportar */}
+          <div style={{ textAlign: 'right', marginTop: 14 }}>
+            <button onClick={() => exportarRelatorio(resultado)}
+              style={{ padding: '8px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Download size={15} /> Exportar Excel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
