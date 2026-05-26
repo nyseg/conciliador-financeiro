@@ -4,6 +4,54 @@ import io
 from openpyxl import load_workbook
 from typing import Optional
 
+# ── OFX / QFX PARSER ────────────────────────────────────────────────────────
+
+def _parsear_ofx(conteudo: bytes) -> pd.DataFrame:
+    """
+    Parseia arquivo OFX/QFX (formato SGML 1.x ou XML 2.x).
+    Extrai transações (STMTTRN) de extratos bancários e faturas de cartão.
+    Retorna DataFrame com colunas: data, descricao, valor, nsu, tipo.
+    """
+    try:
+        text = conteudo.decode("utf-8", errors="replace")
+    except Exception:
+        text = conteudo.decode("latin-1", errors="replace")
+
+    def _get(tag: str, block: str) -> str:
+        m = re.search(fr"<{tag}[^>]*>(.*?)(?=<|\Z)", block, re.IGNORECASE | re.DOTALL)
+        return m.group(1).strip() if m else ""
+
+    rows = []
+    for block in re.findall(r"<STMTTRN>(.*?)</STMTTRN>", text, re.DOTALL | re.IGNORECASE):
+        trnamt  = _get("TRNAMT", block)
+        dtpost  = _get("DTPOSTED", block)
+        memo    = _get("MEMO", block) or _get("NAME", block) or ""
+        fitid   = _get("FITID", block)
+        trntype = _get("TRNTYPE", block)
+
+        try:
+            valor = float(trnamt.replace(",", "."))
+        except (ValueError, TypeError):
+            continue
+
+        dt = None
+        if dtpost:
+            try:
+                dt = pd.to_datetime(dtpost[:8], format="%Y%m%d")
+            except Exception:
+                pass
+
+        rows.append({
+            "data": dt,
+            "descricao": memo.strip(),
+            "valor": abs(round(valor, 2)),
+            "nsu": fitid,
+            "tipo": trntype.lower() if trntype else ("debito" if valor < 0 else "credito"),
+        })
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
 # ── DETECÇÃO DE FORMATO ──────────────────────────────────────────────────────
 
 def _ler_dataframe(conteudo: bytes, nome: str) -> pd.DataFrame:
@@ -41,10 +89,18 @@ def detectar_colunas(conteudo: bytes, nome: str) -> list:
 def parsear_fatura_cartao(conteudo: bytes, nome: str) -> pd.DataFrame:
     """
     Parseia fatura de cartão de crédito.
-    Suporta formato padrão de extrato (xlsx) com data + descrição + valor R$.
+    Suporta CSV, Excel (.xlsx/.xls) e OFX/QFX.
     Retorna DataFrame com colunas: data, descricao, valor, cartao, tipo
     """
     ext = nome.lower().split(".")[-1]
+
+    if ext in ["ofx", "qfx"]:
+        df = _parsear_ofx(conteudo)
+        if not df.empty:
+            df["cartao"] = "OFX"
+            df["tipo"] = "compra"
+            return df[["data", "descricao", "valor", "cartao", "tipo"]]
+        raise ValueError("Arquivo OFX não contém transações reconhecíveis.")
 
     if ext in ["xlsx", "xls"]:
         wb = load_workbook(io.BytesIO(conteudo), read_only=True)
@@ -195,7 +251,13 @@ def parsear_erp(conteudo: bytes, nome: str, mapeamento: Optional[dict] = None) -
 # ── PARSERS RECEITAS ─────────────────────────────────────────────────────────
 
 def parsear_operadora(conteudo: bytes, nome: str) -> pd.DataFrame:
-    """Parseia extrato de operadora de cartão (Stone, Cielo, Rede etc.)"""
+    """Parseia extrato de operadora de cartão (Stone, Cielo, Rede etc.) — CSV, Excel ou OFX."""
+    ext = nome.lower().split(".")[-1]
+    if ext in ["ofx", "qfx"]:
+        df = _parsear_ofx(conteudo)
+        if not df.empty:
+            return df[["data", "descricao", "valor", "nsu", "tipo"]]
+
     df = _ler_dataframe(conteudo, nome)
     col_map = _mapear_colunas_automatico(df, {
         'data': ['data', 'date', 'data venda', 'data transacao'],
@@ -227,7 +289,13 @@ def parsear_operadora(conteudo: bytes, nome: str) -> pd.DataFrame:
 
 
 def parsear_banco(conteudo: bytes, nome: str, mapeamento: Optional[dict] = None) -> pd.DataFrame:
-    """Parseia extrato bancário de créditos recebidos."""
+    """Parseia extrato bancário de créditos recebidos — CSV, Excel ou OFX."""
+    ext = nome.lower().split(".")[-1]
+    if ext in ["ofx", "qfx"]:
+        df = _parsear_ofx(conteudo)
+        if not df.empty:
+            return df[["data", "descricao", "valor"]].copy()
+
     df = _ler_dataframe(conteudo, nome)
     mapa = mapeamento or {}
     col_map = _mapear_colunas_automatico(df, {

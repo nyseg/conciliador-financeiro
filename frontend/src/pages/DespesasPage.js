@@ -4,6 +4,7 @@ import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
 import { conciliarDespesas, previewColunas, exportarRelatorio } from '../api';
+import { salvarHistorico } from '../utils/historico';
 
 const CAMPOS_ERP = [
   { key: 'data', label: 'Coluna de Data' },
@@ -41,11 +42,70 @@ export default function DespesasPage() {
     try {
       const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes });
       setResultado(res);
+      // Salva no histórico local
+      salvarHistorico({
+        tipo: 'despesas',
+        periodo: periodoMes,
+        arquivos: { fatura: fatura.name, erp: erp.name },
+        resumo: res.resumo,
+      });
     } catch (e) {
       setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos.');
     } finally {
       setLoading(false);
     }
+  }
+
+  /**
+   * Conciliação manual: une idxA (ausente_erp ou ausente_fatura)
+   * com idxB (o oposto) em um único item conciliado.
+   */
+  function handleManualMatch(idxA, idxB) {
+    setResultado(prev => {
+      const itens = [...prev.itens];
+      const a = { ...itens[idxA] };
+      const b = { ...itens[idxB] };
+
+      let merged;
+      if (a.status === 'ausente_erp') {
+        // A tem dados da fatura, B tem dados do ERP
+        merged = {
+          ...a,
+          data_erp: b.data_erp,
+          descricao_erp: b.descricao_erp,
+          valor_erp: b.valor_erp,
+          numero_fatura_erp: b.numero_fatura_erp,
+          status_erp: b.status_erp,
+          status: 'ok_manual',
+        };
+      } else {
+        // A tem dados do ERP, B tem dados da fatura
+        merged = {
+          ...a,
+          data_fatura: b.data_fatura,
+          descricao_fatura: b.descricao_fatura,
+          valor_fatura: b.valor_fatura,
+          cartao: b.cartao,
+          status: 'ok_manual',
+        };
+      }
+
+      // Substitui A pelo merged, remove B
+      const newItens = itens
+        .map((item, i) => (i === idxA ? merged : item))
+        .filter((_, i) => i !== idxB);
+
+      // Atualiza resumo
+      const resumo = { ...prev.resumo };
+      if (a.status === 'ausente_erp' || b.status === 'ausente_erp')
+        resumo.sem_erp = Math.max(0, (resumo.sem_erp || 0) - 1);
+      if (a.status === 'ausente_fatura' || b.status === 'ausente_fatura')
+        resumo.sem_fatura = Math.max(0, (resumo.sem_fatura || 0) - 1);
+      resumo.conciliados = (resumo.conciliados || 0) + 1;
+      resumo.total_itens = newItens.length;
+
+      return { ...prev, itens: newItens, resumo };
+    });
   }
 
   const r = resultado?.resumo;
@@ -54,14 +114,15 @@ export default function DespesasPage() {
     <div>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Conciliação de Despesas</h2>
       <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>
-        Fatura do cartão corporativo vs ERP — Contas a Pagar
+        Fatura do cartão corporativo vs ERP — Contas a Pagar &nbsp;
+        <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel ou OFX/QFX</span>
       </p>
 
       {/* Upload */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-        <UploadCard titulo="Fatura do Cartão" subtitulo="CSV ou Excel da fatura" icone={CreditCard}
+        <UploadCard titulo="Fatura do Cartão" subtitulo="CSV, Excel ou OFX/QFX" icone={CreditCard}
           arquivo={fatura} onArquivo={setFatura} />
-        <UploadCard titulo="ERP — Contas a Pagar" subtitulo="Exportação do ERP" icone={Building2}
+        <UploadCard titulo="ERP — Contas a Pagar" subtitulo="CSV ou Excel da exportação" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
       </div>
 
@@ -129,8 +190,12 @@ export default function DespesasPage() {
             </div>
           )}
 
-          {/* Tabela */}
-          <TabelaResultado itens={resultado.itens} modo="despesas" />
+          {/* Tabela com conciliação manual */}
+          <TabelaResultado
+            itens={resultado.itens}
+            modo="despesas"
+            onManualMatch={handleManualMatch}
+          />
 
           {/* Exportar */}
           <div style={{ textAlign: 'right', marginTop: 14 }}>

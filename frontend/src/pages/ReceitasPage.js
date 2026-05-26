@@ -4,6 +4,7 @@ import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
 import { conciliarReceitas, previewColunas, exportarRelatorio } from '../api';
+import { salvarHistorico } from '../utils/historico';
 
 const CAMPOS_ERP = [
   { key: 'data', label: 'Coluna de Data' },
@@ -55,6 +56,13 @@ export default function ReceitasPage() {
     try {
       const res = await conciliarReceitas({ operadora, erp, banco, mapeamentoErp, mapeamentoBanco, periodoMes });
       setResultado(res);
+      // Salva no histórico local
+      salvarHistorico({
+        tipo: 'receitas',
+        periodo: periodoMes,
+        arquivos: { operadora: operadora.name, erp: erp.name, banco: banco.name },
+        resumo: res.resumo,
+      });
     } catch (e) {
       setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos.');
     } finally {
@@ -68,16 +76,17 @@ export default function ReceitasPage() {
     <div>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Conciliação de Receitas</h2>
       <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>
-        Operadora de cartão vs ERP — Contas a Receber vs Extrato Bancário
+        Operadora de cartão vs ERP — Contas a Receber vs Extrato Bancário &nbsp;
+        <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel ou OFX/QFX</span>
       </p>
 
       {/* Upload 3 fontes */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
-        <UploadCard titulo="Operadora de Cartão" subtitulo="Stone, Cielo, Rede…" icone={CreditCard}
+        <UploadCard titulo="Operadora de Cartão" subtitulo="Stone, Cielo, Rede… CSV/OFX" icone={CreditCard}
           arquivo={operadora} onArquivo={setOperadora} />
-        <UploadCard titulo="ERP — Contas a Receber" subtitulo="Exportação do ERP" icone={Building2}
+        <UploadCard titulo="ERP — Contas a Receber" subtitulo="CSV ou Excel do ERP" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
-        <UploadCard titulo="Extrato Bancário" subtitulo="Créditos recebidos" icone={Landmark}
+        <UploadCard titulo="Extrato Bancário" subtitulo="CSV, Excel ou OFX/QFX" icone={Landmark}
           arquivo={banco} onArquivo={handleBancoUpload} />
       </div>
 

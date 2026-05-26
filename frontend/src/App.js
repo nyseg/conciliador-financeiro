@@ -1,10 +1,17 @@
 import { useState } from 'react';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, TrendingDown } from 'lucide-react';
 import DespesasPage from './pages/DespesasPage';
 import ReceitasPage from './pages/ReceitasPage';
+import DashboardPage from './pages/DashboardPage';
+
+const ABAS = [
+  { key: 'dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+  { key: 'despesas',  label: 'Despesas',   icon: TrendingDown },
+  { key: 'receitas',  label: 'Receitas',   icon: TrendingUp },
+];
 
 export default function App() {
-  const [aba, setAba] = useState('despesas');
+  const [aba, setAba] = useState('dashboard');
 
   return (
     <div style={{ minHeight: '100vh', background: '#F4F4F8', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -12,17 +19,14 @@ export default function App() {
       <div style={{ background: '#1A1A2E', color: '#fff', padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.3px' }}>💼 Conciliador Financeiro</div>
-          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>PBO Financeiro — Conciliação automática de cartões</div>
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>BPO Financeiro — Conciliação automática de cartões</div>
         </div>
-        <div style={{ fontSize: 11, color: '#666', background: '#fff', borderRadius: 6, padding: '4px 10px' }}>v1.0</div>
+        <div style={{ fontSize: 11, color: '#666', background: '#fff', borderRadius: 6, padding: '4px 10px' }}>v2.0</div>
       </div>
 
       {/* Tabs */}
       <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 32px', display: 'flex', gap: 0 }}>
-        {[
-          { key: 'despesas', label: 'Despesas', icon: TrendingDown },
-          { key: 'receitas', label: 'Receitas', icon: TrendingUp },
-        ].map(({ key, label, icon: Icon }) => (
+        {ABAS.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setAba(key)}
             style={{
               padding: '13px 20px', border: 'none', background: 'none', cursor: 'pointer',
@@ -37,9 +41,11 @@ export default function App() {
       </div>
 
       {/* Conteúdo */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 24px' }}>
+      <div style={{ maxWidth: 980, margin: '0 auto', padding: '28px 24px' }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: '28px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          {aba === 'despesas' ? <DespesasPage /> : <ReceitasPage />}
+          {aba === 'dashboard' && <DashboardPage />}
+          {aba === 'despesas'  && <DespesasPage />}
+          {aba === 'receitas'  && <ReceitasPage />}
         </div>
       </div>
     </div>
