@@ -162,96 +162,114 @@ def _parsear_fatura_xlsx(ws) -> pd.DataFrame:
 
 
 def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
-    """Parseia fatura em CSV com colunas: Data, Descrição, Valor"""
+    """Parseia fatura em CSV — operações vetorizadas, sem iterrows."""
     col_map = _mapear_colunas_automatico(df, {
-        'data': ['data', 'date', 'dt'],
-        'descricao': ['descrição', 'descricao', 'description', 'historico', 'histórico'],
-        'valor': ['valor', 'value', 'amount', 'r$', 'vl']
+        'data':     ['data', 'date', 'dt'],
+        'descricao':['descrição', 'descricao', 'description', 'historico', 'histórico'],
+        'valor':    ['valor', 'value', 'amount', 'r$', 'vl'],
     })
-    rows = []
-    for _, r in df.iterrows():
-        try:
-            valor = float(str(r.get(col_map.get('valor', ''), '0')).replace(',', '.').replace('R$', '').strip())
-            if valor <= 0:
-                continue
-        except (ValueError, TypeError):
-            continue
-        dt = None
-        try:
-            dt = pd.to_datetime(str(r.get(col_map.get('data', ''), '')), dayfirst=True)
-        except Exception:
-            pass
-        rows.append({'data': dt, 'descricao': str(r.get(col_map.get('descricao', ''), '')),
-                     'valor': round(valor, 2), 'cartao': 'CSV', 'tipo': 'compra'})
-    return pd.DataFrame(rows)
+    col_v = col_map.get('valor', '')
+    if not col_v or col_v not in df.columns:
+        return pd.DataFrame()
+
+    valor = _limpar_valor_col(df[col_v])
+    mask  = valor > 0
+    df_f  = df[mask].copy()
+
+    result = pd.DataFrame()
+    result['valor']    = valor[mask].round(2).values
+    result['cartao']   = 'CSV'
+    result['tipo']     = 'compra'
+
+    col_d = col_map.get('data', '')
+    result['data'] = (
+        pd.to_datetime(df_f[col_d].astype(str), dayfirst=True, errors='coerce').values
+        if col_d and col_d in df_f.columns else pd.NaT
+    )
+
+    col_desc = col_map.get('descricao', '')
+    result['descricao'] = (
+        df_f[col_desc].astype(str).values
+        if col_desc and col_desc in df_f.columns else ''
+    )
+    return result
+
+
+# ── UTILITÁRIO DE LIMPEZA DE VALOR ──────────────────────────────────────────
+
+def _limpar_valor_col(series: pd.Series) -> pd.Series:
+    """Converte coluna de texto para float, removendo R$, vírgulas, espaços."""
+    return pd.to_numeric(
+        series.astype(str)
+              .str.replace('R$', '', regex=False)
+              .str.replace('\xa0', '', regex=False)   # non-breaking space
+              .str.replace(',', '.', regex=False)
+              .str.strip(),
+        errors='coerce',
+    ).fillna(0.0)
 
 
 # ── PARSER ERP (genérico com mapeamento) ─────────────────────────────────────
 
 DEFAULT_MAPEAMENTO_ERP = {
-    'data': 'Data de Vencimento',
-    'descricao': 'Descrição da Conta',
-    'valor': 'Valor Liquidado',
-    'valor_fallback': 'Valor da Conta',
+    'data':          'Data de Vencimento',
+    'descricao':     'Descrição da Conta',
+    'valor':         'Valor Liquidado',
+    'valor_fallback':'Valor da Conta',
     'numero_fatura': 'Numero da Conta',
-    'status': 'Status da Conta',
-    'observacao': 'Observação da Conta',
+    'status':        'Status da Conta',
+    'observacao':    'Observação da Conta',
 }
 
 
 def parsear_erp(conteudo: bytes, nome: str, mapeamento: Optional[dict] = None) -> pd.DataFrame:
     """
     Parseia exportação do ERP de contas a pagar/receber.
-    O mapeamento indica quais colunas do arquivo correspondem a cada campo.
+    Operações vetorizadas — sem iterrows, muito mais rápido para arquivos grandes.
     """
-    df = _ler_dataframe(conteudo, nome)
+    df   = _ler_dataframe(conteudo, nome)
     mapa = {**DEFAULT_MAPEAMENTO_ERP, **(mapeamento or {})}
 
-    rows = []
-    for _, r in df.iterrows():
-        # Valor: tenta liquidado primeiro, depois valor da conta
-        valor = 0.0
-        for col_key in ['valor', 'valor_fallback']:
-            col = mapa.get(col_key, '')
-            if col and col in df.columns:
-                try:
-                    v = float(str(r[col]).replace(',', '.').replace('R$', '').strip())
-                    if v > 0:
-                        valor = round(v, 2)
-                        break
-                except (ValueError, TypeError):
-                    continue
+    # ── Valor: coluna principal, depois fallback ──────────────────────────────
+    col_v  = mapa.get('valor', '')
+    col_fb = mapa.get('valor_fallback', '')
 
-        if valor == 0:
-            continue
+    v1 = _limpar_valor_col(df[col_v])  if (col_v  and col_v  in df.columns) else pd.Series(0.0, index=df.index)
+    v2 = _limpar_valor_col(df[col_fb]) if (col_fb and col_fb in df.columns) else pd.Series(0.0, index=df.index)
 
-        data = None
-        col_data = mapa.get('data', '')
-        if col_data and col_data in df.columns:
-            try:
-                data = pd.to_datetime(str(r[col_data]), dayfirst=True)
-            except Exception:
-                pass
+    # Usa v1 onde > 0, senão v2
+    valor = v1.where(v1 > 0, v2)
+    mask  = valor > 0
+    df_f  = df[mask].copy()
 
-        rows.append({
-            'data': data,
-            'descricao': str(r.get(mapa.get('descricao', ''), '')).strip(),
-            'valor': valor,
-            'numero_fatura': str(r.get(mapa.get('numero_fatura', ''), '')).strip(),
-            'status': str(r.get(mapa.get('status', ''), '')).strip(),
-            'observacao': str(r.get(mapa.get('observacao', ''), '')).strip(),
-        })
+    if df_f.empty:
+        return pd.DataFrame(columns=['data', 'descricao', 'valor', 'numero_fatura', 'status', 'observacao'])
 
-    df_result = pd.DataFrame(rows)
-    if 'data' in df_result.columns:
-        df_result['data'] = pd.to_datetime(df_result['data'], errors='coerce')
-    return df_result
+    result = pd.DataFrame(index=range(mask.sum()))
+    result['valor'] = valor[mask].round(2).values
+
+    # ── Data ─────────────────────────────────────────────────────────────────
+    col_d = mapa.get('data', '')
+    result['data'] = (
+        pd.to_datetime(df_f[col_d].astype(str), dayfirst=True, errors='coerce').values
+        if col_d and col_d in df_f.columns else pd.NaT
+    )
+
+    # ── Strings ──────────────────────────────────────────────────────────────
+    for field in ['descricao', 'numero_fatura', 'status', 'observacao']:
+        col = mapa.get(field, '')
+        result[field] = (
+            df_f[col].astype(str).str.strip().values
+            if col and col in df_f.columns else ''
+        )
+
+    return result
 
 
 # ── PARSERS RECEITAS ─────────────────────────────────────────────────────────
 
 def parsear_operadora(conteudo: bytes, nome: str) -> pd.DataFrame:
-    """Parseia extrato de operadora de cartão (Stone, Cielo, Rede etc.) — CSV, Excel ou OFX."""
+    """Parseia extrato de operadora (Stone, Cielo, Rede…) — CSV, Excel ou OFX. Vetorizado."""
     ext = nome.lower().split(".")[-1]
     if ext in ["ofx", "qfx"]:
         df = _parsear_ofx(conteudo)
@@ -260,36 +278,46 @@ def parsear_operadora(conteudo: bytes, nome: str) -> pd.DataFrame:
 
     df = _ler_dataframe(conteudo, nome)
     col_map = _mapear_colunas_automatico(df, {
-        'data': ['data', 'date', 'data venda', 'data transacao'],
-        'descricao': ['descrição', 'descricao', 'tipo', 'bandeira'],
-        'valor': ['valor bruto', 'valor', 'amount', 'vl bruto', 'bruto'],
-        'nsu': ['nsu', 'tid', 'autorização', 'autorizacao'],
+        'data':    ['data', 'date', 'data venda', 'data transacao'],
+        'descricao':['descrição', 'descricao', 'tipo', 'bandeira'],
+        'valor':   ['valor bruto', 'valor', 'amount', 'vl bruto', 'bruto'],
+        'nsu':     ['nsu', 'tid', 'autorização', 'autorizacao'],
     })
-    rows = []
-    for _, r in df.iterrows():
-        try:
-            valor = float(str(r.get(col_map.get('valor', ''), '0')).replace(',', '.').replace('R$', '').strip())
-            if valor <= 0:
-                continue
-        except (ValueError, TypeError):
-            continue
-        dt = None
-        try:
-            dt = pd.to_datetime(str(r.get(col_map.get('data', ''), '')), dayfirst=True)
-        except Exception:
-            pass
-        rows.append({
-            'data': dt,
-            'descricao': str(r.get(col_map.get('descricao', ''), '')),
-            'valor': round(valor, 2),
-            'nsu': str(r.get(col_map.get('nsu', ''), '')),
-            'tipo': 'venda'
-        })
-    return pd.DataFrame(rows)
+
+    col_v = col_map.get('valor', '')
+    if not col_v or col_v not in df.columns:
+        return pd.DataFrame()
+
+    valor = _limpar_valor_col(df[col_v])
+    mask  = valor > 0
+    df_f  = df[mask].copy()
+
+    result = pd.DataFrame()
+    result['valor'] = valor[mask].round(2).values
+    result['tipo']  = 'venda'
+
+    col_d = col_map.get('data', '')
+    result['data'] = (
+        pd.to_datetime(df_f[col_d].astype(str), dayfirst=True, errors='coerce').values
+        if col_d and col_d in df_f.columns else pd.NaT
+    )
+
+    col_desc = col_map.get('descricao', '')
+    result['descricao'] = (
+        df_f[col_desc].astype(str).values
+        if col_desc and col_desc in df_f.columns else ''
+    )
+
+    col_nsu = col_map.get('nsu', '')
+    result['nsu'] = (
+        df_f[col_nsu].astype(str).values
+        if col_nsu and col_nsu in df_f.columns else ''
+    )
+    return result
 
 
 def parsear_banco(conteudo: bytes, nome: str, mapeamento: Optional[dict] = None) -> pd.DataFrame:
-    """Parseia extrato bancário de créditos recebidos — CSV, Excel ou OFX."""
+    """Parseia extrato bancário de créditos — CSV, Excel ou OFX. Vetorizado."""
     ext = nome.lower().split(".")[-1]
     if ext in ["ofx", "qfx"]:
         df = _parsear_ofx(conteudo)
@@ -297,32 +325,36 @@ def parsear_banco(conteudo: bytes, nome: str, mapeamento: Optional[dict] = None)
             return df[["data", "descricao", "valor"]].copy()
 
     df = _ler_dataframe(conteudo, nome)
-    mapa = mapeamento or {}
     col_map = _mapear_colunas_automatico(df, {
-        'data': ['data', 'date', 'data lançamento', 'lançamento'],
-        'descricao': ['histórico', 'historico', 'descrição', 'descricao'],
-        'valor': ['crédito', 'credito', 'valor', 'entrada'],
+        'data':    ['data', 'date', 'data lançamento', 'lançamento'],
+        'descricao':['histórico', 'historico', 'descrição', 'descricao'],
+        'valor':   ['crédito', 'credito', 'valor', 'entrada'],
     })
-    col_map.update(mapa)
-    rows = []
-    for _, r in df.iterrows():
-        try:
-            valor = float(str(r.get(col_map.get('valor', ''), '0')).replace(',', '.').replace('R$', '').strip())
-            if valor <= 0:
-                continue
-        except (ValueError, TypeError):
-            continue
-        dt = None
-        try:
-            dt = pd.to_datetime(str(r.get(col_map.get('data', ''), '')), dayfirst=True)
-        except Exception:
-            pass
-        rows.append({
-            'data': dt,
-            'descricao': str(r.get(col_map.get('descricao', ''), '')),
-            'valor': round(valor, 2),
-        })
-    return pd.DataFrame(rows)
+    col_map.update(mapeamento or {})
+
+    col_v = col_map.get('valor', '')
+    if not col_v or col_v not in df.columns:
+        return pd.DataFrame()
+
+    valor = _limpar_valor_col(df[col_v])
+    mask  = valor > 0
+    df_f  = df[mask].copy()
+
+    result = pd.DataFrame()
+    result['valor'] = valor[mask].round(2).values
+
+    col_d = col_map.get('data', '')
+    result['data'] = (
+        pd.to_datetime(df_f[col_d].astype(str), dayfirst=True, errors='coerce').values
+        if col_d and col_d in df_f.columns else pd.NaT
+    )
+
+    col_desc = col_map.get('descricao', '')
+    result['descricao'] = (
+        df_f[col_desc].astype(str).values
+        if col_desc and col_desc in df_f.columns else ''
+    )
+    return result
 
 
 # ── UTILIDADE ────────────────────────────────────────────────────────────────

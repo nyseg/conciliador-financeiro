@@ -2,7 +2,10 @@ import axios from 'axios';
 
 const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-const api = axios.create({ baseURL: BASE_URL });
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 120000, // 2 minutos — comporta cold start do Render + arquivos grandes
+});
 
 export async function previewColunas(arquivo, tipo) {
   const fd = new FormData();

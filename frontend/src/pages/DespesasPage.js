@@ -60,7 +60,11 @@ export default function DespesasPage() {
         resumo: res.resumo,
       });
     } catch (e) {
-      setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos.');
+      if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+        setErro('⏱ O servidor demorou mais de 2 minutos. Tente novamente — o servidor já deve estar acordado e a próxima tentativa será mais rápida.');
+      } else {
+        setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
