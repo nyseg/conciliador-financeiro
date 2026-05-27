@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import Optional
+from collections import defaultdict
 
 def conciliar(
     df_principal: pd.DataFrame,
@@ -105,20 +106,38 @@ def _conciliar_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame, periodo_m
 
 
 def _matching_por_valor(df_fatura: pd.DataFrame, df_erp: pd.DataFrame) -> list:
-    """Cruza itens por valor exato. Retorna lista de resultados."""
-    erp_usado = [False] * len(df_erp)
+    """
+    Cruza itens fatura vs ERP por valor exato.
+    Usa índice hash por valor — O(n + m) em vez de O(n × m).
+    Arquivos grandes processam muito mais rápido.
+    """
     erp_list = df_erp.reset_index(drop=True)
+
+    # Índice: valor (cents int) → fila de índices disponíveis no ERP
+    erp_idx: dict = defaultdict(list)
+    for i, e in erp_list.iterrows():
+        try:
+            v_cents = round(float(e.get('valor', 0)) * 100)
+            erp_idx[v_cents].append(i)
+        except (ValueError, TypeError):
+            pass
+
+    erp_usado: set = set()
     resultado = []
 
     for _, c in df_fatura.iterrows():
-        matched_idx = None
-        for i, e in erp_list.iterrows():
-            if not erp_usado[i] and abs(float(e.get('valor', 0)) - float(c.get('valor', 0))) < 0.01:
-                matched_idx = i
-                erp_usado[i] = True
-                break
-
         data_f = c['data'].strftime('%d/%m/%Y') if pd.notna(c.get('data')) else '—'
+        try:
+            val_c_cents = round(float(c.get('valor', 0)) * 100)
+        except (ValueError, TypeError):
+            val_c_cents = 0
+
+        matched_idx = None
+        for idx in erp_idx.get(val_c_cents, []):
+            if idx not in erp_usado:
+                matched_idx = idx
+                erp_usado.add(idx)
+                break
 
         if matched_idx is not None:
             e = erp_list.loc[matched_idx]
@@ -149,9 +168,9 @@ def _matching_por_valor(df_fatura: pd.DataFrame, df_erp: pd.DataFrame) -> list:
                 'status': 'ausente_erp',
             })
 
-    # Itens do ERP sem correspondência na fatura
+    # Itens do ERP sem correspondência
     for i, e in erp_list.iterrows():
-        if not erp_usado[i]:
+        if i not in erp_usado:
             data_e = e['data'].strftime('%d/%m/%Y') if pd.notna(e.get('data')) else '—'
             resultado.append({
                 'data_fatura': '—',
@@ -220,46 +239,75 @@ def _conciliar_receitas(
 
 
 def _matching_triplo(df_op, df_erp, df_banco) -> list:
-    """Matching por valor entre 3 fontes."""
-    erp_usado = [False] * len(df_erp)
-    banco_usado = [False] * len(df_banco)
-    erp_list = df_erp.reset_index(drop=True)
+    """
+    Matching por valor entre 3 fontes (operadora, ERP, banco).
+    Usa índice hash para ERP e banco — O(n + m + k) em vez de O(n × m × k).
+    """
+    erp_list   = df_erp.reset_index(drop=True)
     banco_list = df_banco.reset_index(drop=True) if not df_banco.empty else pd.DataFrame()
+
+    # Índices por valor (cents) para lookup rápido
+    erp_idx: dict = defaultdict(list)
+    for i, e in erp_list.iterrows():
+        try:
+            erp_idx[round(float(e.get('valor', 0)) * 100)].append(i)
+        except (ValueError, TypeError):
+            pass
+
+    banco_idx: dict = defaultdict(list)
+    for i, b in banco_list.iterrows():
+        try:
+            banco_idx[round(float(b.get('valor', 0)) * 100)].append(i)
+        except (ValueError, TypeError):
+            pass
+
+    erp_usado:   set = set()
+    banco_usado: set = set()
     resultado = []
 
     for _, op in df_op.iterrows():
-        val = float(op.get('valor', 0))
+        try:
+            val = round(float(op.get('valor', 0)), 2)
+        except (ValueError, TypeError):
+            val = 0.0
+        val_cents = round(val * 100)
         data_op = op['data'].strftime('%d/%m/%Y') if pd.notna(op.get('data')) else '—'
 
-        # Busca no ERP
+        # Busca ERP por valor exato
         erp_match = None
-        for i, e in erp_list.iterrows():
-            if not erp_usado[i] and abs(float(e.get('valor', 0)) - val) < 0.01:
-                erp_match = (i, e)
-                erp_usado[i] = True
+        for idx in erp_idx.get(val_cents, []):
+            if idx not in erp_usado:
+                erp_match = (idx, erp_list.loc[idx])
+                erp_usado.add(idx)
                 break
 
-        # Busca no banco
+        # Busca banco com tolerância de 5% + R$1 (taxas)
         banco_match = None
-        if not banco_list.empty:
-            for i, b in banco_list.iterrows():
-                if not banco_usado[i] and abs(float(b.get('valor', 0)) - val) < 0.05 * val + 1:
-                    banco_match = (i, b)
-                    banco_usado[i] = True
+        tol_cents = round((0.05 * val + 1) * 100)
+        for idx in banco_list.index:
+            if idx not in banco_usado:
+                try:
+                    bval_cents = round(float(banco_list.loc[idx, 'valor']) * 100)
+                except (ValueError, TypeError):
+                    continue
+                if abs(bval_cents - val_cents) <= tol_cents:
+                    banco_match = (idx, banco_list.loc[idx])
+                    banco_usado.add(idx)
                     break
 
-        status = 'ok' if (erp_match and banco_match) else \
-                 'divergencia' if (erp_match or banco_match) else 'ausente_ambos'
+        status = ('ok'          if (erp_match and banco_match) else
+                  'divergencia' if (erp_match or  banco_match) else
+                  'ausente_ambos')
 
         resultado.append({
-            'data_operadora': data_op,
+            'data_operadora':    data_op,
             'descricao_operadora': op.get('descricao', ''),
-            'valor_operadora': round(val, 2),
-            'data_erp': erp_match[1]['data'].strftime('%d/%m/%Y') if erp_match and pd.notna(erp_match[1].get('data')) else '—',
-            'descricao_erp': erp_match[1].get('descricao', '') if erp_match else '—',
-            'valor_erp': round(float(erp_match[1].get('valor', 0)), 2) if erp_match else 0,
-            'valor_banco': round(float(banco_match[1].get('valor', 0)), 2) if banco_match else 0,
-            'status': status,
+            'valor_operadora':   round(val, 2),
+            'data_erp':          erp_match[1]['data'].strftime('%d/%m/%Y') if erp_match and pd.notna(erp_match[1].get('data')) else '—',
+            'descricao_erp':     erp_match[1].get('descricao', '') if erp_match else '—',
+            'valor_erp':         round(float(erp_match[1].get('valor', 0)), 2) if erp_match else 0,
+            'valor_banco':       round(float(banco_match[1].get('valor', 0)), 2) if banco_match else 0,
+            'status':            status,
         })
 
     return resultado

@@ -40,12 +40,14 @@ export default function App() {
         ))}
       </div>
 
-      {/* Conteúdo */}
+      {/* Conteúdo — display:none preserva estado ao trocar de aba */}
       <div style={{ maxWidth: 980, margin: '0 auto', padding: '28px 24px' }}>
         <div style={{ background: '#fff', borderRadius: 12, padding: '28px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          {/* DespesasPage e ReceitasPage ficam sempre montadas — arquivos e resultado não somem */}
+          <div style={{ display: aba === 'despesas' ? 'block' : 'none' }}><DespesasPage /></div>
+          <div style={{ display: aba === 'receitas' ? 'block' : 'none' }}><ReceitasPage /></div>
+          {/* Dashboard re-monta ao navegar para atualizar o histórico */}
           {aba === 'dashboard' && <DashboardPage />}
-          {aba === 'despesas'  && <DespesasPage />}
-          {aba === 'receitas'  && <ReceitasPage />}
         </div>
       </div>
     </div>

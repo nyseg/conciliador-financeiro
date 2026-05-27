@@ -6,7 +6,12 @@
     <title>Conciliador Financeiro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>* { box-sizing: border-box; } body { margin: 0; }</style>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>

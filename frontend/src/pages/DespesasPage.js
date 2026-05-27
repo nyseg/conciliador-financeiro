@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard, Building2, Download, Play, AlertTriangle } from 'lucide-react';
 import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
@@ -23,7 +23,17 @@ export default function DespesasPage() {
   const [mapeamento, setMapeamento] = useState({});
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingSeg, setLoadingSeg] = useState(0);
   const [erro, setErro] = useState('');
+
+  // Cronômetro de loading — mostra tempo decorrido e alerta após 15s
+  useEffect(() => {
+    if (!loading) { setLoadingSeg(0); return; }
+    setLoadingSeg(0);
+    const inicio = Date.now();
+    const iv = setInterval(() => setLoadingSeg(Math.round((Date.now() - inicio) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [loading]);
 
   async function handleErpUpload(arquivo) {
     setErp(arquivo);
@@ -144,6 +154,25 @@ export default function DespesasPage() {
           <Play size={15} /> {loading ? 'Processando…' : 'Executar Conciliação'}
         </button>
       </div>
+
+      {/* Loading com cronômetro */}
+      {loading && (
+        <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BDD4F7', borderTopColor: '#1A5FA8', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA8' }}>
+              Analisando arquivos… {loadingSeg > 0 && <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>}
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+              {loadingSeg < 15
+                ? 'Processando os dados — aguarde.'
+                : loadingSeg < 35
+                ? '⏳ O servidor está acordando do modo de espera, isso leva até 40 segundos…'
+                : '🔄 Quase lá! Arquivo grande ou servidor ocupado — continue aguardando.'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {erro && (
         <div style={{ background: '#FCEBEB', color: '#A32D2D', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, display: 'flex', gap: 8 }}>
