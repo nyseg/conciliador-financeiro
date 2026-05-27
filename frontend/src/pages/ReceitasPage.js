@@ -5,6 +5,7 @@ import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
 import { conciliarReceitas, previewColunas, exportarRelatorio } from '../api';
 import { salvarHistorico } from '../utils/historico';
+import { acordarServidor } from '../utils/servidor';
 
 const SESSION_KEY = 'resultado_receitas';
 
@@ -32,9 +33,11 @@ export default function ReceitasPage({ setProcessando }) {
   const [mapeamentoErp, setMapeamentoErp] = useState({});
   const [mapeamentoBanco, setMapeamentoBanco] = useState({});
   const [resultado, setResultado]         = useState(null);
-  const [loading, setLoading]             = useState(false);
-  const [loadingSeg, setLoadingSeg]       = useState(0);
-  const [erro, setErro]                   = useState('');
+  const [loading, setLoading]               = useState(false);
+  const [loadingSeg, setLoadingSeg]         = useState(0);
+  const [acordando, setAcordando]           = useState(false);
+  const [acordandoTent, setAcordandoTent]   = useState(0);
+  const [erro, setErro]                     = useState('');
 
   // ── Restaura resultado da sessão ──────────────────────────────────────────
   useEffect(() => {
@@ -68,8 +71,20 @@ export default function ReceitasPage({ setProcessando }) {
   async function handleConciliar() {
     if (!operadora || !erp || !banco) { setErro('Envie os três arquivos antes de conciliar.'); return; }
     setErro('');
-    setLoading(true);
     setProcessando?.('receitas');
+
+    setAcordando(true);
+    setAcordandoTent(0);
+    const online = await acordarServidor((tent) => setAcordandoTent(tent));
+    setAcordando(false);
+
+    if (!online) {
+      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar.');
+      setProcessando?.(null);
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await conciliarReceitas({ operadora, erp, banco, mapeamentoErp, mapeamentoBanco, periodoMes });
       setResultado(res);
@@ -82,7 +97,9 @@ export default function ReceitasPage({ setProcessando }) {
       });
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setErro('⏱ O servidor demorou mais de 2 minutos. Tente novamente — agora estará acordado e será rápido.');
+        setErro('⏱ Timeout. Clique em Executar novamente — o servidor já está acordado.');
+      } else if (!e.response) {
+        setErro('🔌 Erro de conexão com o servidor. Tente novamente em alguns segundos.');
       } else {
         setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
       }
@@ -152,6 +169,20 @@ export default function ReceitasPage({ setProcessando }) {
             : <><Play size={15} /> Executar Conciliação</>}
         </button>
       </div>
+
+      {acordando && (
+        <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
+              ☕ Acordando o servidor… tentativa {acordandoTent}/12
+            </div>
+            <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
+              O servidor estava em modo de espera. Aguarde até 60 segundos.
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>

@@ -5,6 +5,7 @@ import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
 import { conciliarDespesas, previewColunas, exportarRelatorio } from '../api';
 import { salvarHistorico } from '../utils/historico';
+import { acordarServidor } from '../utils/servidor';
 
 const SESSION_KEY = 'resultado_despesas';
 
@@ -24,9 +25,11 @@ export default function DespesasPage({ setProcessando }) {
   const [colunasErp, setColunasErp] = useState([]);
   const [mapeamento, setMapeamento] = useState({});
   const [resultado, setResultado]   = useState(null);
-  const [loading, setLoading]       = useState(false);
-  const [loadingSeg, setLoadingSeg] = useState(0);
-  const [erro, setErro]             = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [loadingSeg, setLoadingSeg]     = useState(0);
+  const [acordando, setAcordando]       = useState(false); // pre-warm do servidor
+  const [acordandoTent, setAcordandoTent] = useState(0);
+  const [erro, setErro]                 = useState('');
 
   // ── Restaura resultado da sessão se o componente tiver desmontado ──────────
   useEffect(() => {
@@ -56,8 +59,22 @@ export default function DespesasPage({ setProcessando }) {
   async function handleConciliar() {
     if (!fatura || !erp) { setErro('Envie os dois arquivos antes de conciliar.'); return; }
     setErro('');
+    setProcessando?.('despesas');
+
+    // ── Etapa 1: acorda o servidor (evita CORS blocked na requisição real) ──
+    setAcordando(true);
+    setAcordandoTent(0);
+    const online = await acordarServidor((tent) => setAcordandoTent(tent));
+    setAcordando(false);
+
+    if (!online) {
+      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar em https://conciliador-financeiro-24q3.onrender.com');
+      setProcessando?.(null);
+      return;
+    }
+
+    // ── Etapa 2: executa a conciliação ───────────────────────────────────────
     setLoading(true);
-    setProcessando?.('despesas');   // ← acende o banner global
     try {
       const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes });
       setResultado(res);
@@ -71,13 +88,15 @@ export default function DespesasPage({ setProcessando }) {
       });
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setErro('⏱ O servidor demorou mais de 2 minutos. Tente novamente — agora estará acordado e será rápido.');
+        setErro('⏱ O servidor demorou mais de 2 minutos. Clique em Executar novamente — agora será rápido.');
+      } else if (!e.response) {
+        setErro('🔌 Erro de conexão com o servidor. Tente novamente em alguns segundos.');
       } else {
         setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
       }
     } finally {
       setLoading(false);
-      setProcessando?.(null);       // ← apaga o banner global
+      setProcessando?.(null);
     }
   }
 
@@ -165,7 +184,22 @@ export default function DespesasPage({ setProcessando }) {
         </button>
       </div>
 
-      {/* Loading com cronômetro */}
+      {/* Fase 1: acordando o servidor */}
+      {acordando && (
+        <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
+              ☕ Acordando o servidor… tentativa {acordandoTent}/12
+            </div>
+            <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
+              O servidor estava em modo de espera. Aguarde até 60 segundos — isso só acontece após 15 min sem uso.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fase 2: processando */}
       {loading && (
         <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BDD4F7', borderTopColor: '#1A5FA8', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
