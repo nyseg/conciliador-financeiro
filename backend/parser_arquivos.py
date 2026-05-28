@@ -3,6 +3,7 @@ import re
 import io
 from openpyxl import load_workbook
 from typing import Optional
+import pdfplumber
 
 # ── OFX / QFX PARSER ────────────────────────────────────────────────────────
 
@@ -52,11 +53,96 @@ def _parsear_ofx(conteudo: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
+# ── PDF PARSER ───────────────────────────────────────────────────────────────
+
+def _parsear_pdf(conteudo: bytes) -> pd.DataFrame:
+    """
+    Parseia PDF financeiro usando pdfplumber.
+    Estratégia 1: extrai tabelas estruturadas página a página.
+    Estratégia 2 (fallback): lê texto linha a linha e infere colunas por padrão.
+    Retorna DataFrame com as colunas encontradas.
+    """
+    all_rows: list = []
+    headers: list | None = None
+
+    with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
+        for page in pdf.pages:
+            tables = page.extract_tables(
+                table_settings={
+                    "vertical_strategy": "lines_strict",
+                    "horizontal_strategy": "lines_strict",
+                    "snap_tolerance": 4,
+                }
+            ) or []
+
+            # fallback: tenta estratégia mais permissiva se não achou tabelas
+            if not tables:
+                tables = page.extract_tables() or []
+
+            for table in tables:
+                if not table or len(table) < 2:
+                    continue
+
+                # Normaliza header: usa primeira linha se ainda não temos headers
+                raw_header = [str(c or "").strip() for c in table[0]]
+                if headers is None:
+                    headers = [h or f"col_{i}" for i, h in enumerate(raw_header)]
+                    data_rows = table[1:]
+                else:
+                    # Verifica se é linha de header repetida (múltiplas páginas)
+                    norm_raw    = [h.lower() for h in raw_header]
+                    norm_header = [h.lower() for h in headers]
+                    data_rows = table[1:] if norm_raw == norm_header else table
+
+                for row in data_rows:
+                    # Garante tamanho igual ao header
+                    padded = [str(c or "").strip() for c in row]
+                    if len(padded) < len(headers):
+                        padded += [""] * (len(headers) - len(padded))
+                    all_rows.append(padded[: len(headers)])
+
+    if all_rows and headers:
+        df = pd.DataFrame(all_rows, columns=headers)
+        df = df.dropna(how="all").reset_index(drop=True)
+        # Remove colunas totalmente vazias
+        df = df.loc[:, (df != "").any()]
+        return df
+
+    # ── Fallback: texto linha a linha ─────────────────────────────────────────
+    lines_data: list = []
+    with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                # Detecta linhas com data + valor (padrão extrato)
+                m = re.match(
+                    r"(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+(.+?)\s+([\d.,]+)\s*$", line
+                )
+                if m:
+                    lines_data.append({
+                        "data":      m.group(1),
+                        "descricao": m.group(2).strip(),
+                        "valor":     m.group(3),
+                    })
+
+    if lines_data:
+        return pd.DataFrame(lines_data)
+
+    return pd.DataFrame()
+
+
 # ── DETECÇÃO DE FORMATO ──────────────────────────────────────────────────────
 
 def _ler_dataframe(conteudo: bytes, nome: str) -> pd.DataFrame:
-    """Lê CSV ou Excel e retorna DataFrame."""
+    """Lê CSV, Excel ou PDF e retorna DataFrame."""
     ext = nome.lower().split(".")[-1]
+
+    if ext == "pdf":
+        return _parsear_pdf(conteudo)
+
     buf = io.BytesIO(conteudo)
     if ext == "csv":
         for sep in [";", ",", "\t"]:
@@ -106,10 +192,10 @@ def parsear_fatura_cartao(conteudo: bytes, nome: str) -> pd.DataFrame:
         wb = load_workbook(io.BytesIO(conteudo), read_only=True)
         ws = wb.active
         return _parsear_fatura_xlsx(ws)
-    else:
-        # Tenta CSV com colunas padrão
-        df = _ler_dataframe(conteudo, nome)
-        return _parsear_fatura_csv(df)
+
+    # CSV ou PDF: lê via _ler_dataframe (PDF já retorna DataFrame estruturado)
+    df = _ler_dataframe(conteudo, nome)
+    return _parsear_fatura_csv(df)
 
 
 def _parsear_fatura_xlsx(ws) -> pd.DataFrame:

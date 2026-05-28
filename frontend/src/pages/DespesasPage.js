@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { CreditCard, Building2, Download, Play, AlertTriangle, RotateCcw } from 'lucide-react';
 import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
@@ -11,10 +11,10 @@ const SESSION_KEY = 'resultado_despesas';
 
 const CAMPOS_ERP = [
   { key: 'data',          label: 'Coluna de Data' },
-  { key: 'descricao',     label: 'Coluna de Descrição' },
+  { key: 'descricao',     label: 'Coluna de DescriÃ§Ã£o' },
   { key: 'valor',         label: 'Coluna de Valor Liquidado' },
   { key: 'valor_fallback',label: 'Coluna de Valor da Conta' },
-  { key: 'numero_fatura', label: 'Nº da Fatura / Referência' },
+  { key: 'numero_fatura', label: 'NÂº da Fatura / ReferÃªncia' },
   { key: 'status',        label: 'Coluna de Status' },
 ];
 
@@ -31,7 +31,7 @@ export default function DespesasPage({ setProcessando }) {
   const [acordandoTent, setAcordandoTent] = useState(0);
   const [erro, setErro]                 = useState('');
 
-  // ── Restaura resultado da sessão se o componente tiver desmontado ──────────
+  // â”€â”€ Restaura resultado da sessÃ£o se o componente tiver desmontado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
@@ -39,7 +39,7 @@ export default function DespesasPage({ setProcessando }) {
     } catch (_) {}
   }, []);
 
-  // ── Cronômetro de loading ─────────────────────────────────────────────────
+  // â”€â”€ CronÃ´metro de loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!loading) { setLoadingSeg(0); return; }
     setLoadingSeg(0);
@@ -61,24 +61,24 @@ export default function DespesasPage({ setProcessando }) {
     setErro('');
     setProcessando?.('despesas');
 
-    // ── Etapa 1: acorda o servidor (evita CORS blocked na requisição real) ──
+    // â”€â”€ Etapa 1: acorda o servidor (evita CORS blocked na requisiÃ§Ã£o real) â”€â”€
     setAcordando(true);
     setAcordandoTent(0);
     const online = await acordarServidor((tent) => setAcordandoTent(tent));
     setAcordando(false);
 
     if (!online) {
-      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar em https://conciliador-financeiro-24q3.onrender.com');
+      setErro('âŒ NÃ£o foi possÃ­vel conectar ao servidor apÃ³s 60 segundos. Verifique se o backend estÃ¡ no ar em https://conciliador-financeiro-24q3.onrender.com');
       setProcessando?.(null);
       return;
     }
 
-    // ── Etapa 2: executa a conciliação ───────────────────────────────────────
+    // â”€â”€ Etapa 2: executa a conciliaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     setLoading(true);
     try {
       const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes });
       setResultado(res);
-      // Persiste na sessão — sobrevive à troca de aba mesmo em versões antigas
+      // Persiste na sessÃ£o â€” sobrevive Ã  troca de aba mesmo em versÃµes antigas
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
       salvarHistorico({
         tipo: 'despesas',
@@ -88,9 +88,9 @@ export default function DespesasPage({ setProcessando }) {
       });
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setErro('⏱ O servidor demorou mais de 2 minutos. Clique em Executar novamente — agora será rápido.');
+        setErro('â± O servidor demorou mais de 2 minutos. Clique em Executar novamente â€” agora serÃ¡ rÃ¡pido.');
       } else if (!e.response) {
-        setErro('🔌 Erro de conexão com o servidor. Tente novamente em alguns segundos.');
+        setErro('ðŸ”Œ Erro de conexÃ£o com o servidor. Tente novamente em alguns segundos.');
       } else {
         setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
       }
@@ -143,25 +143,25 @@ export default function DespesasPage({ setProcessando }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Conciliação de Despesas</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>ConciliaÃ§Ã£o de Despesas</h2>
           <p style={{ fontSize: 13, color: '#666', margin: '4px 0 20px' }}>
-            Fatura do cartão corporativo vs ERP — Contas a Pagar &nbsp;
-            <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel ou OFX/QFX</span>
+            Fatura do cartÃ£o corporativo vs ERP â€” Contas a Pagar &nbsp;
+            <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel, OFX/QFX ou PDF</span>
           </p>
         </div>
         {resultado && (
           <button onClick={handleLimpar}
             style={{ fontSize: 12, color: '#888', background: '#F5F5FA', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <RotateCcw size={12} /> Nova análise
+            <RotateCcw size={12} /> Nova anÃ¡lise
           </button>
         )}
       </div>
 
       {/* Upload */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
-        <UploadCard titulo="Fatura do Cartão" subtitulo="CSV, Excel ou OFX/QFX" icone={CreditCard}
+        <UploadCard titulo="Fatura do CartÃ£o" subtitulo="CSV, Excel, OFX/QFX ou PDF" icone={CreditCard}
           arquivo={fatura} onArquivo={setFatura} />
-        <UploadCard titulo="ERP — Contas a Pagar" subtitulo="CSV ou Excel da exportação" icone={Building2}
+        <UploadCard titulo="ERP â€” Contas a Pagar" subtitulo="CSV ou Excel da exportaÃ§Ã£o" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
       </div>
 
@@ -172,15 +172,15 @@ export default function DespesasPage({ setProcessando }) {
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
         <div>
-          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
+          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>PerÃ­odo (opcional)</label>
           <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }} />
         </div>
         <button onClick={handleConciliar} disabled={loading}
           style={{ marginTop: 20, padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
-            ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processando…</>
-            : <><Play size={15} /> Executar Conciliação</>}
+            ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processandoâ€¦</>
+            : <><Play size={15} /> Executar ConciliaÃ§Ã£o</>}
         </button>
       </div>
 
@@ -190,10 +190,10 @@ export default function DespesasPage({ setProcessando }) {
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
-              ☕ Acordando o servidor… tentativa {acordandoTent}/12
+              â˜• Acordando o servidorâ€¦ tentativa {acordandoTent}/12
             </div>
             <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
-              O servidor estava em modo de espera. Aguarde até 60 segundos — isso só acontece após 15 min sem uso.
+              O servidor estava em modo de espera. Aguarde atÃ© 60 segundos â€” isso sÃ³ acontece apÃ³s 15 min sem uso.
             </div>
           </div>
         </div>
@@ -205,12 +205,12 @@ export default function DespesasPage({ setProcessando }) {
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BDD4F7', borderTopColor: '#1A5FA8', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA8' }}>
-              Analisando arquivos… <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>
+              Analisando arquivosâ€¦ <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>
             </div>
             <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-              {loadingSeg < 15 ? 'Processando — pode navegar para outras abas normalmente.' :
-               loadingSeg < 35 ? '⏳ Servidor acordando do modo de espera (até 40s)…' :
-               '🔄 Quase lá! Continue aguardando.'}
+              {loadingSeg < 15 ? 'Processando â€” pode navegar para outras abas normalmente.' :
+               loadingSeg < 35 ? 'â³ Servidor acordando do modo de espera (atÃ© 40s)â€¦' :
+               'ðŸ”„ Quase lÃ¡! Continue aguardando.'}
             </div>
           </div>
         </div>
@@ -243,7 +243,7 @@ export default function DespesasPage({ setProcessando }) {
             {[
               { label: 'Total fatura', value: `R$ ${r.total_fatura?.toFixed(2)}` },
               { label: 'Total ERP',    value: `R$ ${r.total_erp?.toFixed(2)}` },
-              { label: 'Diferença',    value: `R$ ${r.diferenca?.toFixed(2)}`, destaque: r.diferenca !== 0 },
+              { label: 'DiferenÃ§a',    value: `R$ ${r.diferenca?.toFixed(2)}`, destaque: r.diferenca !== 0 },
             ].map(m => (
               <div key={m.label} style={{ background: m.destaque ? '#FEF3E2' : '#F7F7FB', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 11, color: '#888' }}>{m.label}</div>
@@ -254,7 +254,7 @@ export default function DespesasPage({ setProcessando }) {
 
           {r.total_encargos_pendentes > 0 && (
             <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#5A3200' }}>
-              ⚠️ <strong>Encargos não lançados no ERP:</strong> R$ {r.total_encargos_pendentes?.toFixed(2)}
+              âš ï¸ <strong>Encargos nÃ£o lanÃ§ados no ERP:</strong> R$ {r.total_encargos_pendentes?.toFixed(2)}
             </div>
           )}
 

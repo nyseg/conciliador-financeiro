@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { CreditCard, Building2, Landmark, Download, Play, AlertTriangle, RotateCcw } from 'lucide-react';
 import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
@@ -11,16 +11,16 @@ const SESSION_KEY = 'resultado_receitas';
 
 const CAMPOS_ERP = [
   { key: 'data',         label: 'Coluna de Data' },
-  { key: 'descricao',    label: 'Coluna de Descrição' },
+  { key: 'descricao',    label: 'Coluna de DescriÃ§Ã£o' },
   { key: 'valor',        label: 'Coluna de Valor' },
-  { key: 'numero_fatura',label: 'Nº Referência / Fatura' },
+  { key: 'numero_fatura',label: 'NÂº ReferÃªncia / Fatura' },
   { key: 'status',       label: 'Coluna de Status' },
 ];
 
 const CAMPOS_BANCO = [
   { key: 'data',     label: 'Coluna de Data' },
-  { key: 'descricao',label: 'Coluna de Histórico' },
-  { key: 'valor',    label: 'Coluna de Crédito / Valor' },
+  { key: 'descricao',label: 'Coluna de HistÃ³rico' },
+  { key: 'valor',    label: 'Coluna de CrÃ©dito / Valor' },
 ];
 
 export default function ReceitasPage({ setProcessando }) {
@@ -39,7 +39,7 @@ export default function ReceitasPage({ setProcessando }) {
   const [acordandoTent, setAcordandoTent]   = useState(0);
   const [erro, setErro]                     = useState('');
 
-  // ── Restaura resultado da sessão ──────────────────────────────────────────
+  // â”€â”€ Restaura resultado da sessÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
@@ -47,7 +47,7 @@ export default function ReceitasPage({ setProcessando }) {
     } catch (_) {}
   }, []);
 
-  // ── Cronômetro ────────────────────────────────────────────────────────────
+  // â”€â”€ CronÃ´metro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!loading) { setLoadingSeg(0); return; }
     setLoadingSeg(0);
@@ -69,7 +69,7 @@ export default function ReceitasPage({ setProcessando }) {
   }
 
   async function handleConciliar() {
-    if (!operadora || !erp || !banco) { setErro('Envie os três arquivos antes de conciliar.'); return; }
+    if (!operadora || !erp || !banco) { setErro('Envie os trÃªs arquivos antes de conciliar.'); return; }
     setErro('');
     setProcessando?.('receitas');
 
@@ -79,7 +79,7 @@ export default function ReceitasPage({ setProcessando }) {
     setAcordando(false);
 
     if (!online) {
-      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar.');
+      setErro('âŒ NÃ£o foi possÃ­vel conectar ao servidor apÃ³s 60 segundos. Verifique se o backend estÃ¡ no ar.');
       setProcessando?.(null);
       return;
     }
@@ -97,9 +97,9 @@ export default function ReceitasPage({ setProcessando }) {
       });
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setErro('⏱ Timeout. Clique em Executar novamente — o servidor já está acordado.');
+        setErro('â± Timeout. Clique em Executar novamente â€” o servidor jÃ¡ estÃ¡ acordado.');
       } else if (!e.response) {
-        setErro('🔌 Erro de conexão com o servidor. Tente novamente em alguns segundos.');
+        setErro('ðŸ”Œ Erro de conexÃ£o com o servidor. Tente novamente em alguns segundos.');
       } else {
         setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
       }
@@ -124,26 +124,26 @@ export default function ReceitasPage({ setProcessando }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Conciliação de Receitas</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>ConciliaÃ§Ã£o de Receitas</h2>
           <p style={{ fontSize: 13, color: '#666', margin: '4px 0 20px' }}>
-            Operadora vs ERP — Contas a Receber vs Extrato Bancário &nbsp;
-            <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel ou OFX/QFX</span>
+            Operadora vs ERP â€” Contas a Receber vs Extrato BancÃ¡rio &nbsp;
+            <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel, OFX/QFX ou PDF</span>
           </p>
         </div>
         {resultado && (
           <button onClick={handleLimpar}
             style={{ fontSize: 12, color: '#888', background: '#F5F5FA', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <RotateCcw size={12} /> Nova análise
+            <RotateCcw size={12} /> Nova anÃ¡lise
           </button>
         )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
-        <UploadCard titulo="Operadora de Cartão" subtitulo="Stone, Cielo, Rede… CSV/OFX" icone={CreditCard}
+        <UploadCard titulo="Operadora de CartÃ£o" subtitulo="Stone, Cielo, Redeâ€¦ CSV/OFX" icone={CreditCard}
           arquivo={operadora} onArquivo={setOperadora} />
-        <UploadCard titulo="ERP — Contas a Receber" subtitulo="CSV ou Excel do ERP" icone={Building2}
+        <UploadCard titulo="ERP â€” Contas a Receber" subtitulo="CSV ou Excel do ERP" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
-        <UploadCard titulo="Extrato Bancário" subtitulo="CSV, Excel ou OFX/QFX" icone={Landmark}
+        <UploadCard titulo="Extrato BancÃ¡rio" subtitulo="CSV, Excel, OFX/QFX ou PDF" icone={Landmark}
           arquivo={banco} onArquivo={handleBancoUpload} />
       </div>
 
@@ -158,15 +158,15 @@ export default function ReceitasPage({ setProcessando }) {
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
         <div>
-          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
+          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>PerÃ­odo (opcional)</label>
           <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }} />
         </div>
         <button onClick={handleConciliar} disabled={loading}
           style={{ marginTop: 20, padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
-            ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processando…</>
-            : <><Play size={15} /> Executar Conciliação</>}
+            ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processandoâ€¦</>
+            : <><Play size={15} /> Executar ConciliaÃ§Ã£o</>}
         </button>
       </div>
 
@@ -175,10 +175,10 @@ export default function ReceitasPage({ setProcessando }) {
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
-              ☕ Acordando o servidor… tentativa {acordandoTent}/12
+              â˜• Acordando o servidorâ€¦ tentativa {acordandoTent}/12
             </div>
             <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
-              O servidor estava em modo de espera. Aguarde até 60 segundos.
+              O servidor estava em modo de espera. Aguarde atÃ© 60 segundos.
             </div>
           </div>
         </div>
@@ -189,12 +189,12 @@ export default function ReceitasPage({ setProcessando }) {
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BDD4F7', borderTopColor: '#1A5FA8', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA8' }}>
-              Analisando arquivos… <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>
+              Analisando arquivosâ€¦ <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>
             </div>
             <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-              {loadingSeg < 15 ? 'Processando — pode navegar para outras abas normalmente.' :
-               loadingSeg < 35 ? '⏳ Servidor acordando do modo de espera (até 40s)…' :
-               '🔄 Quase lá! Continue aguardando.'}
+              {loadingSeg < 15 ? 'Processando â€” pode navegar para outras abas normalmente.' :
+               loadingSeg < 35 ? 'â³ Servidor acordando do modo de espera (atÃ© 40s)â€¦' :
+               'ðŸ”„ Quase lÃ¡! Continue aguardando.'}
             </div>
           </div>
         </div>
@@ -212,7 +212,7 @@ export default function ReceitasPage({ setProcessando }) {
             {[
               { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
               { label: 'Conciliados',     value: r.conciliados,  color: '#1D9E75' },
-              { label: 'Divergências',    value: r.divergencias, color: '#BA7517' },
+              { label: 'DivergÃªncias',    value: r.divergencias, color: '#BA7517' },
               { label: 'Ausentes',        value: r.ausentes,     color: '#E24B4A' },
             ].map(m => (
               <div key={m.label} style={{ background: '#F7F7FB', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>

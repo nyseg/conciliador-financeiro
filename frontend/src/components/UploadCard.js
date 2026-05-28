@@ -17,7 +17,7 @@ export default function UploadCard({ titulo, subtitulo, icone: Icone, arquivo, o
         transition: 'all .15s',
       }}
     >
-      <input ref={ref} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }}
+      <input ref={ref} type="file" accept=".csv,.xlsx,.xls,.ofx,.qfx,.pdf" style={{ display: 'none' }}
         onChange={e => e.target.files[0] && onArquivo(e.target.files[0])} />
 
       {arquivo
