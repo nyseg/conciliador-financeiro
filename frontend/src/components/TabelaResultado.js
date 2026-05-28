@@ -4,6 +4,8 @@ import { Link2, X } from 'lucide-react';
 // ── Badges de status ─────────────────────────────────────────────────────────
 const BADGE = {
   ok:              { bg: '#E1F5EE', color: '#0F6E56', label: '✅ Conciliado' },
+  ok_parcela:      { bg: '#EEF4FD', color: '#1A5FA8', label: '📋 Parcela' },
+  ok_categoria:    { bg: '#F0FBF6', color: '#0F6E56', label: '📦 Agrupado' },
   ok_manual:       { bg: '#EEF4FD', color: '#1A5FA8', label: '🔗 Manual' },
   ausente_erp:     { bg: '#FCEBEB', color: '#A32D2D', label: '❌ Sem ERP' },
   ausente_fatura:  { bg: '#FAEEDA', color: '#854F0B', label: '⚠️ Sem fatura' },
@@ -22,29 +24,37 @@ function Badge({ status }) {
 
 function SitBadge({ sit }) {
   if (!sit || sit === '—') return <span style={{ color: '#bbb' }}>—</span>;
-  const isPaga = sit.toLowerCase() === 'paga';
+  const isPaga = sit.toLowerCase().includes('pag') || sit.toLowerCase().includes('liquid');
   return (
-    <span style={{ background: isPaga ? '#EEF4FD' : '#FEF3E2', color: isPaga ? '#1A5FA8' : '#8A4A00', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>
+    <span style={{ background: isPaga ? '#E1F5EE' : '#FEF3E2', color: isPaga ? '#0F6E56' : '#8A4A00', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>
       {sit}
+    </span>
+  );
+}
+
+function ParcelaBadge({ parcela, totalEstimado }) {
+  if (!parcela) return <span style={{ color: '#bbb' }}>—</span>;
+  return (
+    <span title={totalEstimado ? `Total estimado: R$ ${totalEstimado.toFixed(2)}` : ''}
+      style={{ background: '#EEF4FD', color: '#1A5FA8', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700, cursor: 'help' }}>
+      {parcela}
     </span>
   );
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function TabelaResultado({ itens, modo, onManualMatch }) {
-  const [filtro, setFiltro] = useState('todos');
-  const [matchingItem, setMatchingItem] = useState(null); // { item, originalIdx }
+  const [filtro, setFiltro]         = useState('todos');
+  const [matchingItem, setMatchingItem] = useState(null);
 
-  // Adiciona índice original para rastrear após filtro
   const itensComIdx = itens.map((item, idx) => ({ ...item, _originalIdx: idx }));
-  const filtrados = filtro === 'todos'
+  const filtrados   = filtro === 'todos'
     ? itensComIdx
     : itensComIdx.filter(i => i.status === filtro);
 
   const totalFatura = filtrados.reduce((a, i) => a + (i.valor_fatura || i.valor_operadora || 0), 0);
   const totalErp    = filtrados.reduce((a, i) => a + (i.valor_erp || 0), 0);
 
-  // Itens elegíveis para o painel de matching (status oposto ao item selecionado)
   const itensPairing = !matchingItem ? [] : itensComIdx.filter(i => {
     if (matchingItem.item.status === 'ausente_erp')    return i.status === 'ausente_fatura';
     if (matchingItem.item.status === 'ausente_fatura') return i.status === 'ausente_erp';
@@ -54,14 +64,27 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
   function confirmarMatch(oposto) {
     onManualMatch(matchingItem.item._originalIdx, oposto._originalIdx);
     setMatchingItem(null);
-    // Volta para "todos" para mostrar o item merged
     setFiltro('todos');
   }
 
   const podeMatch = status => onManualMatch && (status === 'ausente_erp' || status === 'ausente_fatura');
+  const qtd = s => itens.filter(i => i.status === s).length;
+  const qtdOk = () => itens.filter(i => ['ok','ok_parcela','ok_categoria','ok_manual'].includes(i.status)).length;
+
+  // Colunas
+  const temParcela = modo === 'despesas' && itens.some(i => i.parcela);
+  const temCategoria = modo === 'despesas' && itens.some(i => i.categoria_erp && i.categoria_erp !== '' && i.categoria_erp !== 'None' && i.categoria_erp !== 'nan');
 
   const colunas = modo === 'despesas'
-    ? ['Data Fatura', 'Estabelecimento', 'Cartão', 'Vlr Fatura', 'Data ERP', 'Categoria ERP', 'Vlr ERP', 'Sit. ERP', 'Status', ...(onManualMatch ? [''] : [])]
+    ? [
+        'Data Fatura', 'Estabelecimento', 'Cartão',
+        'Vlr Fatura',
+        ...(temParcela ? ['Parcela'] : []),
+        'Data ERP', 'Fornecedor / ERP',
+        ...(temCategoria ? ['Categoria'] : []),
+        'Vlr ERP', 'Sit. ERP', 'Status',
+        ...(onManualMatch ? [''] : []),
+      ]
     : ['Data Operadora', 'Descrição', 'Vlr Operadora', 'Data ERP', 'Desc. ERP', 'Vlr ERP', 'Vlr Banco', 'Status'];
 
   const getCells = (item) => {
@@ -83,23 +106,39 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
 
     if (modo === 'despesas') {
       const cells = [
-        item.data_fatura, item.descricao_fatura, item.cartao,
-        `R$ ${(item.valor_fatura || 0).toFixed(2)}`, item.data_erp,
-        item.descricao_erp, `R$ ${(item.valor_erp || 0).toFixed(2)}`,
-        <SitBadge sit={item.status_erp} />, <Badge status={item.status} />,
+        item.data_fatura,
+        item.descricao_fatura,
+        item.cartao,
+        `R$ ${(item.valor_fatura || 0).toFixed(2)}`,
       ];
+      if (temParcela) cells.push(
+        <ParcelaBadge parcela={item.parcela} totalEstimado={item.valor_total_estimado} />
+      );
+      cells.push(item.data_erp, item.descricao_erp);
+      if (temCategoria) cells.push(
+        item.categoria_erp && item.categoria_erp !== 'None' && item.categoria_erp !== 'nan'
+          ? <span style={{ fontSize: 11, background: '#F5F5FA', borderRadius: 4, padding: '1px 5px' }}>{item.categoria_erp}</span>
+          : <span style={{ color: '#ccc' }}>—</span>
+      );
+      cells.push(
+        `R$ ${(item.valor_erp || 0).toFixed(2)}`,
+        <SitBadge sit={item.status_erp} />,
+        <Badge status={item.status} />,
+      );
       if (onManualMatch) cells.push(acaoCell);
       return cells;
     }
+
+    // receitas
     return [
       item.data_operadora, item.descricao_operadora,
-      `R$ ${(item.valor_operadora || 0).toFixed(2)}`, item.data_erp,
-      item.descricao_erp, `R$ ${(item.valor_erp || 0).toFixed(2)}`,
-      `R$ ${(item.valor_banco || 0).toFixed(2)}`, <Badge status={item.status} />,
+      `R$ ${(item.valor_operadora || 0).toFixed(2)}`,
+      item.data_erp, item.descricao_erp,
+      `R$ ${(item.valor_erp || 0).toFixed(2)}`,
+      `R$ ${(item.valor_banco || 0).toFixed(2)}`,
+      <Badge status={item.status} />,
     ];
   };
-
-  const qtd = s => itens.filter(i => i.status === s).length;
 
   return (
     <div>
@@ -109,8 +148,10 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
         <select value={filtro} onChange={e => { setFiltro(e.target.value); setMatchingItem(null); }}
           style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}>
           <option value="todos">Todos ({itens.length})</option>
-          <option value="ok">✅ Conciliados ({qtd('ok')})</option>
-          {qtd('ok_manual') > 0 && <option value="ok_manual">🔗 Manuais ({qtd('ok_manual')})</option>}
+          <option value="ok">✅ Conciliados ({qtdOk()})</option>
+          {qtd('ok_parcela') > 0   && <option value="ok_parcela">📋 Parcelas ({qtd('ok_parcela')})</option>}
+          {qtd('ok_categoria') > 0 && <option value="ok_categoria">📦 Agrupados ({qtd('ok_categoria')})</option>}
+          {qtd('ok_manual') > 0    && <option value="ok_manual">🔗 Manuais ({qtd('ok_manual')})</option>}
           {modo === 'despesas' && <>
             <option value="ausente_erp">❌ Sem ERP ({qtd('ausente_erp')})</option>
             <option value="ausente_fatura">⚠️ Sem fatura ({qtd('ausente_fatura')})</option>
@@ -123,7 +164,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
 
         {onManualMatch && (qtd('ausente_erp') > 0 || qtd('ausente_fatura') > 0) && (
           <span style={{ fontSize: 11, color: '#1A5FA8', background: '#EEF4FD', borderRadius: 4, padding: '3px 8px' }}>
-            💡 Clique em <strong>Conciliar</strong> em itens não encontrados para fazer o vínculo manual
+            💡 Clique em <strong>Conciliar</strong> para vincular manualmente
           </span>
         )}
       </div>
@@ -134,13 +175,11 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#1A5FA8' }}>
-                🔗 Selecione o item {matchingItem.item.status === 'ausente_erp' ? 'do ERP' : 'da Fatura'} para conciliar com:
+                🔗 Selecione o item {matchingItem.item.status === 'ausente_erp' ? 'do ERP' : 'da Fatura'} para vincular com:
               </div>
               <div style={{ fontSize: 12, color: '#333', marginTop: 2 }}>
                 <strong>{matchingItem.item.descricao_fatura || matchingItem.item.descricao_erp}</strong>
-                {' '} — R$ {((matchingItem.item.valor_fatura || matchingItem.item.valor_erp) || 0).toFixed(2)}
-                {matchingItem.item.data_fatura && matchingItem.item.data_fatura !== '—' && ` — ${matchingItem.item.data_fatura}`}
-                {matchingItem.item.data_erp && matchingItem.item.data_erp !== '—' && ` — ${matchingItem.item.data_erp}`}
+                {' — '}R$ {((matchingItem.item.valor_fatura || matchingItem.item.valor_erp) || 0).toFixed(2)}
               </div>
             </div>
             <button onClick={() => setMatchingItem(null)}
@@ -151,18 +190,15 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
 
           {itensPairing.length === 0 ? (
             <div style={{ fontSize: 12, color: '#888', fontStyle: 'italic' }}>
-              Nenhum item disponível para conciliar. Todos já foram vinculados.
+              Nenhum item disponível. Todos já foram vinculados.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 220, overflowY: 'auto' }}>
               {itensPairing.map(op => (
                 <button key={op._originalIdx} onClick={() => confirmarMatch(op)}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '7px 12px', background: '#fff', border: '1px solid #D4E6FF',
-                    borderRadius: 7, cursor: 'pointer', fontSize: 12, textAlign: 'left',
-                    transition: 'background .1s',
-                  }}
+                    borderRadius: 7, cursor: 'pointer', fontSize: 12, textAlign: 'left' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#F0F7FF'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
                   <span style={{ color: '#333' }}>
@@ -186,7 +222,8 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
           <thead>
             <tr>
               {colunas.map((c, i) => (
-                <th key={i} style={{ padding: '8px 10px', background: '#F5F5FA', fontWeight: 600, fontSize: 11, color: '#555', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>
+                <th key={i} style={{ padding: '8px 10px', background: '#F5F5FA', fontWeight: 600, fontSize: 11,
+                  color: '#555', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>
                   {c}
                 </th>
               ))}
@@ -194,24 +231,24 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
           </thead>
           <tbody>
             {filtrados.map((item, i) => (
-              <tr key={i}
-                style={{
-                  background: matchingItem?.item._originalIdx === item._originalIdx
-                    ? '#EFF6FF'
-                    : i % 2 === 0 ? '#fff' : '#FAFAFA',
-                }}>
+              <tr key={i} style={{
+                background: matchingItem?.item._originalIdx === item._originalIdx
+                  ? '#EFF6FF' : i % 2 === 0 ? '#fff' : '#FAFAFA',
+              }}>
                 {getCells(item).map((cell, j) => (
-                  <td key={j} style={{ padding: '6px 10px', borderBottom: '1px solid #F0F0F0', whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <td key={j} style={{ padding: '6px 10px', borderBottom: '1px solid #F0F0F0',
+                    whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {cell}
                   </td>
                 ))}
               </tr>
             ))}
-            {/* Linha de totais */}
+            {/* Totais */}
             <tr style={{ background: '#F5F5FA', fontWeight: 700 }}>
-              <td colSpan={modo === 'despesas' ? 3 : 2} style={{ padding: '7px 10px', fontSize: 12 }}>Total</td>
+              <td colSpan={modo === 'despesas' ? (temParcela ? 4 : 3) : 2}
+                style={{ padding: '7px 10px', fontSize: 12 }}>Total</td>
               <td style={{ padding: '7px 10px' }}>R$ {totalFatura.toFixed(2)}</td>
-              <td colSpan={modo === 'despesas' ? 2 : 1}></td>
+              <td colSpan={modo === 'despesas' ? (temCategoria ? 3 : 2) : 1}></td>
               <td style={{ padding: '7px 10px' }}>R$ {totalErp.toFixed(2)}</td>
               <td colSpan={modo === 'despesas' ? (onManualMatch ? 3 : 2) : 2}></td>
             </tr>

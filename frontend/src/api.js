@@ -15,12 +15,13 @@ export async function previewColunas(arquivo, tipo) {
   return data;
 }
 
-export async function conciliarDespesas({ fatura, erp, mapeamento, periodoMes }) {
+export async function conciliarDespesas({ fatura, erp, mapeamento, periodoMes, modoErp }) {
   const fd = new FormData();
   fd.append('fatura', fatura);
   fd.append('erp', erp);
   fd.append('mapeamento', JSON.stringify(mapeamento || {}));
   fd.append('periodo_mes', periodoMes || '');
+  fd.append('modo_erp', modoErp || 'transacao');
   const { data } = await api.post('/api/conciliar-despesas', fd);
   return data;
 }

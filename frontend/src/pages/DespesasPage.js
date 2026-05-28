@@ -11,17 +11,25 @@ const SESSION_KEY = 'resultado_despesas';
 
 const CAMPOS_ERP = [
   { key: 'data',          label: 'Coluna de Data' },
-  { key: 'descricao',     label: 'Coluna de Descrição' },
+  { key: 'descricao',     label: 'Coluna de Descrição / Fornecedor' },
   { key: 'valor',         label: 'Coluna de Valor Liquidado' },
-  { key: 'valor_fallback',label: 'Coluna de Valor da Conta' },
+  { key: 'valor_fallback',label: 'Coluna de Valor da Conta (fallback)' },
   { key: 'numero_fatura', label: 'Nº da Fatura / Referência' },
   { key: 'status',        label: 'Coluna de Status' },
+  { key: 'categoria',     label: 'Categoria de Despesa (opcional)' },
+];
+
+const MODOS_ERP = [
+  { value: 'transacao', label: 'Por Transação',  desc: 'ERP tem uma linha por compra/fornecedor' },
+  { value: 'categoria', label: 'Por Categoria',  desc: 'ERP agrupa despesas por tipo (combustível, alimentação…)' },
+  { value: 'misto',     label: 'Misto',           desc: 'Tenta por transação primeiro, depois por categoria' },
 ];
 
 export default function DespesasPage({ setProcessando }) {
   const [fatura, setFatura]         = useState(null);
   const [erp, setErp]               = useState(null);
   const [periodoMes, setPeriodoMes] = useState('');
+  const [modoErp, setModoErp]       = useState('transacao');
   const [colunasErp, setColunasErp] = useState([]);
   const [mapeamento, setMapeamento] = useState({});
   const [resultado, setResultado]   = useState(null);
@@ -65,14 +73,14 @@ export default function DespesasPage({ setProcessando }) {
     setAcordando(false);
 
     if (!online) {
-      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar em https://conciliador-financeiro-24q3.onrender.com');
+      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar.');
       setProcessando?.(null);
       return;
     }
 
     setLoading(true);
     try {
-      const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes });
+      const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes, modoErp });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
       salvarHistorico({
@@ -98,12 +106,9 @@ export default function DespesasPage({ setProcessando }) {
   function handleLimpar() {
     setResultado(null);
     sessionStorage.removeItem(SESSION_KEY);
-    setFatura(null);
-    setErp(null);
-    setColunasErp([]);
-    setMapeamento({});
-    setPeriodoMes('');
-    setErro('');
+    setFatura(null); setErp(null);
+    setColunasErp([]); setMapeamento({});
+    setPeriodoMes(''); setErro('');
   }
 
   function handleManualMatch(idxA, idxB) {
@@ -114,14 +119,16 @@ export default function DespesasPage({ setProcessando }) {
 
       let merged;
       if (a.status === 'ausente_erp') {
-        merged = { ...a, data_erp: b.data_erp, descricao_erp: b.descricao_erp, valor_erp: b.valor_erp, numero_fatura_erp: b.numero_fatura_erp, status_erp: b.status_erp, status: 'ok_manual' };
+        merged = { ...a, data_erp: b.data_erp, descricao_erp: b.descricao_erp, valor_erp: b.valor_erp,
+                   numero_fatura_erp: b.numero_fatura_erp, status_erp: b.status_erp, status: 'ok_manual' };
       } else {
-        merged = { ...a, data_fatura: b.data_fatura, descricao_fatura: b.descricao_fatura, valor_fatura: b.valor_fatura, cartao: b.cartao, status: 'ok_manual' };
+        merged = { ...a, data_fatura: b.data_fatura, descricao_fatura: b.descricao_fatura,
+                   valor_fatura: b.valor_fatura, cartao: b.cartao, status: 'ok_manual' };
       }
 
       const newItens = itens.map((item, i) => i === idxA ? merged : item).filter((_, i) => i !== idxB);
       const resumo = { ...prev.resumo };
-      if (a.status === 'ausente_erp' || b.status === 'ausente_erp') resumo.sem_erp = Math.max(0, (resumo.sem_erp || 0) - 1);
+      if (a.status === 'ausente_erp'    || b.status === 'ausente_erp')    resumo.sem_erp    = Math.max(0, (resumo.sem_erp    || 0) - 1);
       if (a.status === 'ausente_fatura' || b.status === 'ausente_fatura') resumo.sem_fatura = Math.max(0, (resumo.sem_fatura || 0) - 1);
       resumo.conciliados = (resumo.conciliados || 0) + 1;
       resumo.total_itens = newItens.length;
@@ -164,14 +171,26 @@ export default function DespesasPage({ setProcessando }) {
           onChange={setMapeamento} campos={CAMPOS_ERP} />
       )}
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+      {/* Controles de execução */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
         <div>
           <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
           <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }} />
         </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Como o ERP está estruturado?</label>
+          <select value={modoErp} onChange={e => setModoErp(e.target.value)}
+            style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13, background: '#fff', minWidth: 200 }}>
+            {MODOS_ERP.map(m => (
+              <option key={m.value} value={m.value}>{m.label} — {m.desc}</option>
+            ))}
+          </select>
+        </div>
+
         <button onClick={handleConciliar} disabled={loading}
-          style={{ marginTop: 20, padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
           {loading
             ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processando…</>
             : <><Play size={15} /> Executar Conciliação</>}
@@ -216,7 +235,8 @@ export default function DespesasPage({ setProcessando }) {
 
       {resultado && r && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          {/* Cards de resumo */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
               { label: 'Conciliados',     value: r.conciliados,  color: '#1D9E75' },
@@ -230,11 +250,35 @@ export default function DespesasPage({ setProcessando }) {
             ))}
           </div>
 
+          {/* Cards de parcelas e agrupamentos (quando detectados) */}
+          {(r.parcelas_detectadas > 0 || r.agrupados_categoria > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
+              {r.parcelas_detectadas > 0 && (
+                <div style={{ background: '#EEF4FD', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📋</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#1A5FA8' }}>Parcelas detectadas e conciliadas</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#1A5FA8' }}>{r.parcelas_detectadas}</div>
+                  </div>
+                </div>
+              )}
+              {r.agrupados_categoria > 0 && (
+                <div style={{ background: '#F0FBF6', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>📦</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#0F6E56' }}>Itens conciliados por categoria</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0F6E56' }}>{r.agrupados_categoria}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total fatura', value: `R$ ${r.total_fatura?.toFixed(2)}` },
               { label: 'Total ERP',    value: `R$ ${r.total_erp?.toFixed(2)}` },
-              { label: 'Diferença', value: `R$ ${r.diferenca?.toFixed(2)}`, destaque: r.diferenca !== 0 },
+              { label: 'Diferença',    value: `R$ ${r.diferenca?.toFixed(2)}`, destaque: r.diferenca !== 0 },
             ].map(m => (
               <div key={m.label} style={{ background: m.destaque ? '#FEF3E2' : '#F7F7FB', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 11, color: '#888' }}>{m.label}</div>
