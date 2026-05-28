@@ -40,18 +40,21 @@ async def preview_colunas(
 async def conciliar_despesas(
     fatura: UploadFile = File(...),
     erp: UploadFile = File(...),
-    mapeamento: str = Form("{}"),       # JSON com mapeamento de colunas do ERP
-    periodo_mes: str = Form(""),        # ex: "2026-03"
-    modo_erp: str = Form("transacao"),  # "transacao" | "categoria" | "misto"
+    mapeamento: str = Form("{}"),          # JSON mapeamento colunas ERP
+    mapeamento_fatura: str = Form("{}"),   # JSON mapeamento colunas fatura
+    periodo_mes: str = Form(""),           # ex: "2026-03"
+    modo_erp: str = Form("transacao"),     # "transacao" | "categoria" | "misto"
 ):
     """Concilia fatura do cartão corporativo com ERP contas a pagar."""
     try:
         fatura_bytes = await fatura.read()
-        erp_bytes = await erp.read()
-        mapa = json.loads(mapeamento)
+        erp_bytes    = await erp.read()
+        mapa         = json.loads(mapeamento)
+        mapa_fatura  = json.loads(mapeamento_fatura)
 
-        df_fatura = parsear_fatura_cartao(fatura_bytes, fatura.filename or "")
-        df_erp = parsear_erp(erp_bytes, erp.filename or "", mapa)
+        df_fatura = parsear_fatura_cartao(fatura_bytes, fatura.filename or "",
+                                          mapeamento=mapa_fatura or None)
+        df_erp    = parsear_erp(erp_bytes, erp.filename or "", mapa)
 
         resultado = conciliar(df_fatura, df_erp, periodo_mes, modo="despesas", modo_erp=modo_erp)
         return resultado

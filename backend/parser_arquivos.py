@@ -170,30 +170,51 @@ def detectar_colunas(conteudo: bytes, nome: str) -> list:
     return [str(c).strip() for c in df.columns if str(c).strip()]
 
 
-# ── PARSER FATURA CARTÃO (formato Bradesco/padrão) ───────────────────────────
+# ── PARSER FATURA CARTÃO ─────────────────────────────────────────────────────
 
-def parsear_fatura_cartao(conteudo: bytes, nome: str) -> pd.DataFrame:
+def parsear_fatura_cartao(conteudo: bytes, nome: str,
+                          mapeamento: Optional[dict] = None) -> pd.DataFrame:
     """
     Parseia fatura de cartão de crédito.
-    Suporta CSV, Excel (.xlsx/.xls) e OFX/QFX.
-    Retorna DataFrame com colunas: data, descricao, valor, cartao, tipo
+    Suporta CSV, Excel (.xlsx/.xls), OFX/QFX e PDF.
+
+    Estratégia:
+      1. OFX/QFX  → parser SGML dedicado
+      2. Com mapeamento explícito → usa colunas informadas pelo usuário
+      3. XLSX/XLS → tenta formato Bradesco; se vazio, cai no parser genérico
+      4. CSV/PDF  → parser genérico com detecção automática de colunas
     """
     ext = nome.lower().split(".")[-1]
 
+    # ── OFX / QFX ─────────────────────────────────────────────────────────────
     if ext in ["ofx", "qfx"]:
         df = _parsear_ofx(conteudo)
         if not df.empty:
             df["cartao"] = "OFX"
-            df["tipo"] = "compra"
+            df["tipo"]   = "compra"
             return df[["data", "descricao", "valor", "cartao", "tipo"]]
         raise ValueError("Arquivo OFX não contém transações reconhecíveis.")
 
-    if ext in ["xlsx", "xls"]:
-        wb = load_workbook(io.BytesIO(conteudo), read_only=True)
-        ws = wb.active
-        return _parsear_fatura_xlsx(ws)
+    # ── Mapeamento explícito (usuário mapeou as colunas) ──────────────────────
+    if mapeamento:
+        df = _ler_dataframe(conteudo, nome)
+        return _parsear_fatura_generico(df, mapeamento)
 
-    # CSV ou PDF: lê via _ler_dataframe (PDF já retorna DataFrame estruturado)
+    # ── XLSX/XLS: tenta Bradesco; se não encontrar, cai no genérico ───────────
+    if ext in ["xlsx", "xls"]:
+        try:
+            wb = load_workbook(io.BytesIO(conteudo), read_only=True)
+            ws = wb.active
+            df_bd = _parsear_fatura_xlsx(ws)
+            if not df_bd.empty:
+                return df_bd
+        except Exception:
+            pass
+        # Fallback genérico para qualquer Excel tabular
+        df = _ler_dataframe(conteudo, nome)
+        return _parsear_fatura_csv(df)
+
+    # ── CSV / PDF ─────────────────────────────────────────────────────────────
     df = _ler_dataframe(conteudo, nome)
     return _parsear_fatura_csv(df)
 
@@ -248,12 +269,36 @@ def _parsear_fatura_xlsx(ws) -> pd.DataFrame:
 
 
 def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
-    """Parseia fatura em CSV — operações vetorizadas, sem iterrows."""
+    """
+    Parseia fatura em formato tabular (CSV / Excel genérico / PDF).
+    Detecta automaticamente colunas de data, descrição e valor.
+    Cobre nomenclaturas de diversos bancos e ERPs.
+    """
     col_map = _mapear_colunas_automatico(df, {
-        'data':     ['data', 'date', 'dt'],
-        'descricao':['descrição', 'descricao', 'description', 'historico', 'histórico'],
-        'valor':    ['valor', 'value', 'amount', 'r$', 'vl'],
+        'data': [
+            'data', 'date', 'dt', 'data lançamento', 'data transação',
+            'data da transação', 'data compra', 'data de compra',
+            'data pagamento', 'data de pagamento', 'vencimento',
+            'data vencimento', 'data do lançamento', 'data movimento',
+        ],
+        'descricao': [
+            'descrição', 'descricao', 'description', 'historico', 'histórico',
+            'estabelecimento', 'fornecedor', 'lançamento', 'lancamento',
+            'transação', 'transacao', 'detalhe', 'memo', 'nome',
+            'portador', 'comercio', 'comércio', 'local', 'beneficiario',
+        ],
+        'valor': [
+            'valor', 'value', 'amount', 'r$', 'vl', 'vlr',
+            'valor r$', 'valor (r$)', 'valor brl', 'importe',
+            'valor nacional', 'valor original', 'valor da compra',
+            'valor transação', 'valor transacao', 'débito', 'debito',
+        ],
+        'cartao': [
+            'cartão', 'cartao', 'card', 'final', 'últimos dígitos',
+            'portador', 'titular',
+        ],
     })
+
     col_v = col_map.get('valor', '')
     if not col_v or col_v not in df.columns:
         return pd.DataFrame()
@@ -262,10 +307,18 @@ def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
     mask  = valor > 0
     df_f  = df[mask].copy()
 
-    result = pd.DataFrame()
-    result['valor']    = valor[mask].round(2).values
-    result['cartao']   = 'CSV'
-    result['tipo']     = 'compra'
+    if df_f.empty:
+        return pd.DataFrame()
+
+    result            = pd.DataFrame()
+    result['valor']   = valor[mask].round(2).values
+    result['tipo']    = 'compra'
+
+    col_cartao = col_map.get('cartao', '')
+    result['cartao'] = (
+        df_f[col_cartao].astype(str).values
+        if col_cartao and col_cartao in df_f.columns else 'Fatura'
+    )
 
     col_d = col_map.get('data', '')
     result['data'] = (
@@ -274,6 +327,46 @@ def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     col_desc = col_map.get('descricao', '')
+    result['descricao'] = (
+        df_f[col_desc].astype(str).values
+        if col_desc and col_desc in df_f.columns else ''
+    )
+    return result
+
+
+def _parsear_fatura_generico(df: pd.DataFrame, mapeamento: dict) -> pd.DataFrame:
+    """
+    Parseia fatura usando mapeamento explícito de colunas informado pelo usuário.
+    Suporta qualquer banco/formato.
+    """
+    col_v = mapeamento.get('valor', '')
+    if not col_v or col_v not in df.columns:
+        return pd.DataFrame()
+
+    valor = _limpar_valor_col(df[col_v])
+    mask  = valor > 0
+    df_f  = df[mask].copy()
+
+    if df_f.empty:
+        return pd.DataFrame()
+
+    result          = pd.DataFrame()
+    result['valor'] = valor[mask].round(2).values
+    result['tipo']  = 'compra'
+
+    col_cartao = mapeamento.get('cartao', '')
+    result['cartao'] = (
+        df_f[col_cartao].astype(str).values
+        if col_cartao and col_cartao in df_f.columns else 'Fatura'
+    )
+
+    col_d = mapeamento.get('data', '')
+    result['data'] = (
+        pd.to_datetime(df_f[col_d].astype(str), dayfirst=True, errors='coerce').values
+        if col_d and col_d in df_f.columns else pd.NaT
+    )
+
+    col_desc = mapeamento.get('descricao', '')
     result['descricao'] = (
         df_f[col_desc].astype(str).values
         if col_desc and col_desc in df_f.columns else ''

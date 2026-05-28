@@ -9,6 +9,15 @@ import { acordarServidor } from '../utils/servidor';
 
 const SESSION_KEY = 'resultado_despesas';
 
+// Campos que o usuário pode mapear na FATURA do cartão
+const CAMPOS_FATURA = [
+  { key: 'data',      label: 'Coluna de Data da Compra' },
+  { key: 'descricao', label: 'Coluna de Descrição / Estabelecimento' },
+  { key: 'valor',     label: 'Coluna de Valor' },
+  { key: 'cartao',    label: 'Coluna do Cartão / Final (opcional)' },
+];
+
+// Campos que o usuário pode mapear no ERP
 const CAMPOS_ERP = [
   { key: 'data',          label: 'Coluna de Data' },
   { key: 'descricao',     label: 'Coluna de Descrição / Fornecedor' },
@@ -22,22 +31,26 @@ const CAMPOS_ERP = [
 const MODOS_ERP = [
   { value: 'transacao', label: 'Por Transação',  desc: 'ERP tem uma linha por compra/fornecedor' },
   { value: 'categoria', label: 'Por Categoria',  desc: 'ERP agrupa despesas por tipo (combustível, alimentação…)' },
-  { value: 'misto',     label: 'Misto',           desc: 'Tenta por transação primeiro, depois por categoria' },
+  { value: 'misto',     label: 'Misto',          desc: 'Tenta por transação primeiro, depois por categoria' },
 ];
 
 export default function DespesasPage({ setProcessando }) {
-  const [fatura, setFatura]         = useState(null);
-  const [erp, setErp]               = useState(null);
-  const [periodoMes, setPeriodoMes] = useState('');
-  const [modoErp, setModoErp]       = useState('transacao');
-  const [colunasErp, setColunasErp] = useState([]);
-  const [mapeamento, setMapeamento] = useState({});
-  const [resultado, setResultado]   = useState(null);
-  const [loading, setLoading]           = useState(false);
-  const [loadingSeg, setLoadingSeg]     = useState(0);
-  const [acordando, setAcordando]       = useState(false);
+  const [fatura, setFatura]               = useState(null);
+  const [erp, setErp]                     = useState(null);
+  const [periodoMes, setPeriodoMes]       = useState('');
+  const [modoErp, setModoErp]             = useState('transacao');
+
+  const [colunasFatura, setColunasFatura] = useState([]);
+  const [colunasErp, setColunasErp]       = useState([]);
+  const [mapeamentoFatura, setMapeamentoFatura] = useState({});
+  const [mapeamento, setMapeamento]       = useState({});
+
+  const [resultado, setResultado]         = useState(null);
+  const [loading, setLoading]             = useState(false);
+  const [loadingSeg, setLoadingSeg]       = useState(0);
+  const [acordando, setAcordando]         = useState(false);
   const [acordandoTent, setAcordandoTent] = useState(0);
-  const [erro, setErro]                 = useState('');
+  const [erro, setErro]                   = useState('');
 
   useEffect(() => {
     try {
@@ -53,6 +66,16 @@ export default function DespesasPage({ setProcessando }) {
     const iv = setInterval(() => setLoadingSeg(Math.round((Date.now() - inicio) / 1000)), 1000);
     return () => clearInterval(iv);
   }, [loading]);
+
+  async function handleFaturaUpload(arquivo) {
+    setFatura(arquivo);
+    setColunasFatura([]);
+    setMapeamentoFatura({});
+    try {
+      const { colunas } = await previewColunas(arquivo, 'erp_pagar'); // tipo não importa aqui
+      setColunasFatura(colunas);
+    } catch (e) { console.error(e); }
+  }
 
   async function handleErpUpload(arquivo) {
     setErp(arquivo);
@@ -80,7 +103,9 @@ export default function DespesasPage({ setProcessando }) {
 
     setLoading(true);
     try {
-      const res = await conciliarDespesas({ fatura, erp, mapeamento, periodoMes, modoErp });
+      const res = await conciliarDespesas({
+        fatura, erp, mapeamento, mapeamentoFatura, periodoMes, modoErp,
+      });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
       salvarHistorico({
@@ -107,7 +132,8 @@ export default function DespesasPage({ setProcessando }) {
     setResultado(null);
     sessionStorage.removeItem(SESSION_KEY);
     setFatura(null); setErp(null);
-    setColunasErp([]); setMapeamento({});
+    setColunasFatura([]); setColunasErp([]);
+    setMapeamentoFatura({}); setMapeamento({});
     setPeriodoMes(''); setErro('');
   }
 
@@ -161,17 +187,34 @@ export default function DespesasPage({ setProcessando }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
         <UploadCard titulo="Fatura do Cartão" subtitulo="CSV, Excel, OFX/QFX ou PDF" icone={CreditCard}
-          arquivo={fatura} onArquivo={setFatura} />
+          arquivo={fatura} onArquivo={handleFaturaUpload} />
         <UploadCard titulo="ERP — Contas a Pagar" subtitulo="CSV, Excel ou PDF" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
       </div>
 
-      {colunasErp.length > 0 && (
-        <MapeadorColunas colunas={colunasErp} mapeamento={mapeamento}
-          onChange={setMapeamento} campos={CAMPOS_ERP} />
+      {/* Mapeador da fatura — só aparece se colunas foram detectadas */}
+      {colunasFatura.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: '#1A5FA8', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CreditCard size={13} /> Mapeamento da Fatura do Cartão
+          </div>
+          <MapeadorColunas colunas={colunasFatura} mapeamento={mapeamentoFatura}
+            onChange={setMapeamentoFatura} campos={CAMPOS_FATURA} />
+        </div>
       )}
 
-      {/* Controles de execução */}
+      {/* Mapeador do ERP */}
+      {colunasErp.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: '#5A3200', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Building2 size={13} /> Mapeamento do ERP
+          </div>
+          <MapeadorColunas colunas={colunasErp} mapeamento={mapeamento}
+            onChange={setMapeamento} campos={CAMPOS_ERP} />
+        </div>
+      )}
+
+      {/* Controles */}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
         <div>
           <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
@@ -201,11 +244,9 @@ export default function DespesasPage({ setProcessando }) {
         <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
-              ☕ Acordando o servidor… tentativa {acordandoTent}/12
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>☕ Acordando o servidor… tentativa {acordandoTent}/12</div>
             <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
-              O servidor estava em modo de espera. Aguarde até 60 segundos — isso só acontece após 15 min sem uso.
+              O servidor estava em modo de espera. Aguarde até 60 segundos.
             </div>
           </div>
         </div>
@@ -235,7 +276,6 @@ export default function DespesasPage({ setProcessando }) {
 
       {resultado && r && (
         <div style={{ marginTop: 24 }}>
-          {/* Cards de resumo */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
@@ -250,7 +290,6 @@ export default function DespesasPage({ setProcessando }) {
             ))}
           </div>
 
-          {/* Cards de parcelas e agrupamentos (quando detectados) */}
           {(r.parcelas_detectadas > 0 || r.agrupados_categoria > 0) && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
               {r.parcelas_detectadas > 0 && (
