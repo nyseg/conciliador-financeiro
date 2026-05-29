@@ -1,0 +1,122 @@
+/* ============================================================
+   Conciliador Financeiro — Responsive Utilities
+   Breakpoints: mobile < 640px | tablet 641-900px
+   Usamos !important para sobrescrever inline styles do React.
+   ============================================================ */
+
+/* ── Tablet (641 – 900 px) ───────────────────────────────── */
+@media (max-width: 900px) {
+  .resp-header {
+    padding: 12px 20px !important;
+  }
+  .resp-tabs {
+    padding: 0 16px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .resp-tabs::-webkit-scrollbar { display: none; }
+  .resp-content {
+    padding: 20px 16px !important;
+  }
+  .resp-card {
+    padding: 20px 18px !important;
+  }
+  /* 4-col → 2-col */
+  .resp-grid-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ── Mobile (< 640 px) ───────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Header */
+  .resp-header {
+    padding: 10px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* Banner de processamento */
+  .resp-banner {
+    padding: 8px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .resp-banner button {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  /* Tabs */
+  .resp-tabs {
+    padding: 0 6px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .resp-tabs button {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  /* Content wrapper */
+  .resp-content {
+    padding: 12px 10px !important;
+  }
+  .resp-card {
+    padding: 14px 12px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Grids */
+  .resp-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .resp-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+  .resp-grid-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Title rows (espaçamento topo) */
+  .resp-title-row,
+  .resp-dash-title {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  /* Controls bar (periodo + modo + botao) */
+  .resp-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .resp-controls > div,
+  .resp-controls > button {
+    width: 100% !important;
+    margin-top: 0 !important;
+    box-sizing: border-box;
+  }
+  .resp-controls input[type="month"],
+  .resp-controls select {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+  .resp-controls button {
+    justify-content: center;
+  }
+
+  /* Mapeador de colunas */
+  .resp-mapper-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Dashboard title */
+  .resp-dash-title {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+}

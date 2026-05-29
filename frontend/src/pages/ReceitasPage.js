@@ -120,7 +120,7 @@ export default function ReceitasPage({ setProcessando }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+      <div className="resp-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
         <div>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Conciliação de Receitas</h2>
           <p style={{ fontSize: 13, color: '#666', margin: '4px 0 20px' }}>
@@ -136,7 +136,7 @@ export default function ReceitasPage({ setProcessando }) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
+      <div className="resp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
         <UploadCard titulo="Operadora de Cartão" subtitulo="Stone, Cielo, Rede… CSV, OFX ou PDF" icone={CreditCard}
           arquivo={operadora} onArquivo={setOperadora} />
         <UploadCard titulo="ERP — Contas a Receber" subtitulo="CSV, Excel ou PDF" icone={Building2}
@@ -154,7 +154,7 @@ export default function ReceitasPage({ setProcessando }) {
           onChange={setMapeamentoBanco} campos={CAMPOS_BANCO} />
       )}
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
+      <div className="resp-controls" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
         <div>
           <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
           <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
@@ -206,7 +206,7 @@ export default function ReceitasPage({ setProcessando }) {
 
       {resultado && r && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
               { label: 'Conciliados',     value: r.conciliados,  color: '#1D9E75' },
@@ -220,7 +220,7 @@ export default function ReceitasPage({ setProcessando }) {
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total operadora', value: `R$ ${r.total_operadora?.toFixed(2)}` },
               { label: 'Total ERP',       value: `R$ ${r.total_erp?.toFixed(2)}` },

@@ -19,7 +19,7 @@ export default function App() {
     <div style={{ minHeight: '100vh', background: '#F4F4F8', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: '#1A1A2E', color: '#fff', padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="resp-header" style={{ background: '#1A1A2E', color: '#fff', padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.3px' }}>💼 Conciliador Financeiro</div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>BPO Financeiro — Conciliação automática de cartões</div>
@@ -29,7 +29,7 @@ export default function App() {
 
       {/* Banner global — aparece em QUALQUER aba enquanto processa */}
       {processando && (
-        <div style={{
+        <div className="resp-banner" style={{
           background: '#1A5FA8', color: '#fff',
           padding: '9px 32px', display: 'flex', alignItems: 'center', gap: 12, fontSize: 13,
         }}>
@@ -51,7 +51,7 @@ export default function App() {
       )}
 
       {/* Tabs */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 32px', display: 'flex', gap: 0 }}>
+      <div className="resp-tabs" style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 32px', display: 'flex', gap: 0 }}>
         {ABAS.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setAba(key)}
             style={{
@@ -76,8 +76,8 @@ export default function App() {
       </div>
 
       {/* Conteúdo — display:none preserva estado + sessionStorage como fallback */}
-      <div style={{ maxWidth: 980, margin: '0 auto', padding: '28px 24px' }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: '28px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div className="resp-content" style={{ maxWidth: 980, margin: '0 auto', padding: '28px 24px' }}>
+        <div className="resp-card" style={{ background: '#fff', borderRadius: 12, padding: '28px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           <div style={{ display: aba === 'despesas' ? 'block' : 'none' }}>
             <DespesasPage setProcessando={setProcessando} />
           </div>

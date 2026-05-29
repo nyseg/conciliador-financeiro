@@ -3,7 +3,7 @@ import { CreditCard, Building2, Download, Play, AlertTriangle, RotateCcw } from 
 import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
-import { conciliarDespesas, previewColunas, exportarRelatorio } from '../api';
+import { conciliarDespesas, previewColunas, exportarRelatorio, baixarExcelDoPdf } from '../api';
 import { salvarHistorico } from '../utils/historico';
 import { acordarServidor } from '../utils/servidor';
 
@@ -51,6 +51,7 @@ export default function DespesasPage({ setProcessando }) {
   const [acordando, setAcordando]         = useState(false);
   const [acordandoTent, setAcordandoTent] = useState(0);
   const [erro, setErro]                   = useState('');
+  const [baixandoExcel, setBaixandoExcel] = useState(false);
 
   useEffect(() => {
     try {
@@ -72,9 +73,25 @@ export default function DespesasPage({ setProcessando }) {
     setColunasFatura([]);
     setMapeamentoFatura({});
     try {
-      const { colunas } = await previewColunas(arquivo, 'erp_pagar'); // tipo não importa aqui
+      // Para PDFs textuais, detectar_colunas() extrai via pdfplumber (rápido).
+      // Para PDFs imagem (Santander), retorna [] — OCR roda no "Executar".
+      const { colunas } = await previewColunas(arquivo, 'erp_pagar');
       setColunasFatura(colunas);
     } catch (e) { console.error(e); }
+  }
+
+  async function handleBaixarExcel() {
+    if (!fatura) return;
+    setBaixandoExcel(true);
+    setErro('');
+    try {
+      await baixarExcelDoPdf(fatura);
+    } catch (e) {
+      const msg = e.response?.data?.detail || 'Erro ao converter o PDF.';
+      setErro('❌ ' + msg);
+    } finally {
+      setBaixandoExcel(false);
+    }
   }
 
   async function handleErpUpload(arquivo) {
@@ -103,8 +120,13 @@ export default function DespesasPage({ setProcessando }) {
 
     setLoading(true);
     try {
+      // PDFs imagem (sem colunas detectadas) → OCR automático, sem mapeamento
+      // PDFs textuais (com colunas detectadas) → envia mapeamento igual CSV/Excel
+      const faturaEhPdfImagem = fatura.name.toLowerCase().endsWith('.pdf') && colunasFatura.length === 0;
       const res = await conciliarDespesas({
-        fatura, erp, mapeamento, mapeamentoFatura, periodoMes, modoErp,
+        fatura, erp, mapeamento,
+        mapeamentoFatura: faturaEhPdfImagem ? {} : mapeamentoFatura,
+        periodoMes, modoErp,
       });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
@@ -135,6 +157,7 @@ export default function DespesasPage({ setProcessando }) {
     setColunasFatura([]); setColunasErp([]);
     setMapeamentoFatura({}); setMapeamento({});
     setPeriodoMes(''); setErro('');
+    setBaixandoExcel(false);
   }
 
   function handleManualMatch(idxA, idxB) {
@@ -169,7 +192,7 @@ export default function DespesasPage({ setProcessando }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+      <div className="resp-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
         <div>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Conciliação de Despesas</h2>
           <p style={{ fontSize: 13, color: '#666', margin: '4px 0 20px' }}>
@@ -185,15 +208,37 @@ export default function DespesasPage({ setProcessando }) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+      <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
         <UploadCard titulo="Fatura do Cartão" subtitulo="CSV, Excel, OFX/QFX ou PDF" icone={CreditCard}
           arquivo={fatura} onArquivo={handleFaturaUpload} />
         <UploadCard titulo="ERP — Contas a Pagar" subtitulo="CSV, Excel ou PDF" icone={Building2}
           arquivo={erp} onArquivo={handleErpUpload} />
       </div>
 
-      {/* Mapeador da fatura — só aparece se colunas foram detectadas */}
-      {colunasFatura.length > 0 && (
+      {/* ── Fatura PDF imagem: OCR automático + botão baixar Excel ── */}
+      {fatura && fatura.name.toLowerCase().endsWith('.pdf') && colunasFatura.length === 0 && (
+        <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 8, padding: '10px 14px', marginBottom: 8, fontSize: 12, color: '#1A5FA8', display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+          <CreditCard size={14} style={{ marginTop: 1, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <strong>PDF detectado</strong> — as transações serão extraídas automaticamente via OCR.<br />
+            <span style={{ color: '#555', fontSize: 11 }}>
+              Ou baixe o Excel extraído para revisar/editar antes de usar como fatura.
+            </span>
+          </div>
+          <button
+            onClick={handleBaixarExcel}
+            disabled={baixandoExcel}
+            style={{ padding: '5px 12px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: baixandoExcel ? 'not-allowed' : 'pointer', opacity: baixandoExcel ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}
+          >
+            {baixandoExcel
+              ? <><div style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Extraindo…</>
+              : '📥 Baixar como Excel'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Mapeador da fatura — CSV, Excel ou PDF textual (com tabela detectada) ── */}
+      {!(fatura && fatura.name.toLowerCase().endsWith('.pdf') && colunasFatura.length === 0) && colunasFatura.length > 0 ? (
         <div style={{ marginBottom: 4 }}>
           <div style={{ fontSize: 12, color: '#1A5FA8', fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
             <CreditCard size={13} /> Mapeamento da Fatura do Cartão
@@ -201,7 +246,7 @@ export default function DespesasPage({ setProcessando }) {
           <MapeadorColunas colunas={colunasFatura} mapeamento={mapeamentoFatura}
             onChange={setMapeamentoFatura} campos={CAMPOS_FATURA} />
         </div>
-      )}
+      ) : null}
 
       {/* Mapeador do ERP */}
       {colunasErp.length > 0 && (
@@ -215,7 +260,7 @@ export default function DespesasPage({ setProcessando }) {
       )}
 
       {/* Controles */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
+      <div className="resp-controls" style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginTop: 16, flexWrap: 'wrap' }}>
         <div>
           <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
           <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
@@ -276,7 +321,7 @@ export default function DespesasPage({ setProcessando }) {
 
       {resultado && r && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
+          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
             {[
               { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
               { label: 'Conciliados',     value: r.conciliados,  color: '#1D9E75' },
@@ -291,7 +336,7 @@ export default function DespesasPage({ setProcessando }) {
           </div>
 
           {(r.parcelas_detectadas > 0 || r.agrupados_categoria > 0) && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
+            <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
               {r.parcelas_detectadas > 0 && (
                 <div style={{ background: '#EEF4FD', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 20 }}>📋</span>
@@ -313,7 +358,7 @@ export default function DespesasPage({ setProcessando }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div className="resp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Total fatura', value: `R$ ${r.total_fatura?.toFixed(2)}` },
               { label: 'Total ERP',    value: `R$ ${r.total_erp?.toFixed(2)}` },

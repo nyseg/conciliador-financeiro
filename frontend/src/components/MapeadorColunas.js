@@ -6,7 +6,7 @@ export default function MapeadorColunas({ colunas, mapeamento, onChange, campos 
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: '#333' }}>
         🗂️ Mapeamento de colunas do ERP
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="resp-mapper-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {campos.map(({ key, label }) => (
           <div key={key}>
             <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>{label}</label>

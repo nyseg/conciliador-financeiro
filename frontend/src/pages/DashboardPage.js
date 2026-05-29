@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="resp-dash-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
             <LayoutDashboard size={17} /> Dashboard
@@ -80,7 +80,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Cards resumo */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
         {[
           { label: 'Total de execuções', value: total, color: '#378ADD', icon: RefreshCw },
           { label: 'Taxa média conciliada', value: `${taxaMedia}%`, color: taxaMedia >= 80 ? '#1D9E75' : taxaMedia >= 50 ? '#BA7517' : '#E24B4A', icon: null },

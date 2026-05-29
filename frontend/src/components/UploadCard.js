@@ -31,6 +31,11 @@ export default function UploadCard({ titulo, subtitulo, icone: Icone, arquivo, o
       <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
         {arquivo ? arquivo.name : subtitulo}
       </div>
+      {arquivo && arquivo.name.toLowerCase().endsWith('.pdf') && (
+        <div style={{ fontSize: 10, color: '#BA7517', marginTop: 4, background: '#FEF3E2', borderRadius: 4, padding: '2px 6px' }}>
+          ⏳ PDF com imagem — OCR ativo (pode levar 1–2 min)
+        </div>
+      )}
     </div>
   );
 }
