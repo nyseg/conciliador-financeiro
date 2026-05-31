@@ -248,7 +248,18 @@ def _parsear_pdf_ocr(conteudo: bytes) -> pd.DataFrame:
 
     ano_ref = _inferir_ano(all_lines)
     rows = _parse_linhas_transacao(all_lines, ano_referencia=ano_ref)
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    if rows:
+        return pd.DataFrame(rows)
+
+    # OCR rodou mas não encontrou o padrão data+descrição+valor —
+    # inclui amostra das linhas lidas para facilitar diagnóstico
+    linhas_validas = [l for l in all_lines if l.strip()]
+    amostra = '\n'.join(linhas_validas[:20]) if linhas_validas else '(nenhum texto extraído)'
+    raise ValueError(
+        f"OCR extraiu {len(linhas_validas)} linha(s) mas não encontrou transações "
+        f"no padrão esperado (data + descrição + valor).\n"
+        f"Primeiras linhas lidas pelo OCR:\n{amostra}"
+    )
 
 
 def _parsear_pdf(conteudo: bytes) -> pd.DataFrame:
@@ -265,6 +276,20 @@ def _parsear_pdf(conteudo: bytes) -> pd.DataFrame:
     all_rows: list = []
     headers:  list | None = None
 
+    # Keywords usadas para validar que a tabela é de transações (igual a _extrair_colunas_pdf_rapido)
+    _kw_valor = {'valor', 'value', 'amount', 'r$', ' vl', 'débito', 'debito', 'crédito', 'credito', 'compra'}
+    _kw_data  = {'data', 'date', 'dt', 'competência', 'competencia', 'lançamento', 'lancamento', 'movimento'}
+    _kw_desc  = {'descrição', 'descricao', 'description', 'histórico', 'historico',
+                 'estabelecimento', 'fornecedor', 'memo', 'transação', 'transacao', 'beneficiario'}
+
+    def _eh_tabela_transacao(header: list) -> bool:
+        """True se a tabela parecer de transações: tem coluna de valor E (data ou descrição)."""
+        def _tem(col, kws): return any(kw in col.lower() for kw in kws)
+        tem_v = any(_tem(h, _kw_valor) for h in header)
+        tem_d = any(_tem(h, _kw_data)  for h in header)
+        tem_e = any(_tem(h, _kw_desc)  for h in header)
+        return tem_v and (tem_d or tem_e)
+
     with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
         for page in pdf.pages:
             for tset in [
@@ -277,11 +302,14 @@ def _parsear_pdf(conteudo: bytes) -> pd.DataFrame:
                     if not table or len(table) < 2:
                         continue
                     raw_header = [str(c or "").strip() for c in table[0]]
-                    # Rejeita tabelas onde o header parece ser um resumo financeiro
-                    # (ex: "Fatura Anterior", "Total", "Saldo") e não colunas de dados
+                    # Rejeita tabelas onde TODOS os headers são de resumo financeiro
                     palavras_resumo = {'fatura anterior', 'total', 'saldo', 'pagamento',
                                        'limite', 'encargo', 'juros', 'vencimento'}
                     if all(h.lower() in palavras_resumo or h == '' for h in raw_header):
+                        continue
+                    # Rejeita tabelas que não têm colunas típicas de transação
+                    # (evita boletos/resumos com "Vencimento", "Valor do Documento", etc.)
+                    if not _eh_tabela_transacao(raw_header):
                         continue
                     if headers is None:
                         headers   = [h or f"col_{i}" for i, h in enumerate(raw_header)]

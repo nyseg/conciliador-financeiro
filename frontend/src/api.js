@@ -42,13 +42,24 @@ export async function conciliarReceitas({ operadora, erp, banco, mapeamentoErp, 
 export async function baixarExcelDoPdf(arquivo) {
   const fd = new FormData();
   fd.append('arquivo', arquivo);
-  const resp = await api.post('/api/pdf-para-excel', fd, { responseType: 'blob' });
-  const url = window.URL.createObjectURL(new Blob([resp.data]));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = arquivo.name.replace(/\.pdf$/i, '_extraido.xlsx');
-  a.click();
-  window.URL.revokeObjectURL(url);
+  try {
+    const resp = await api.post('/api/pdf-para-excel', fd, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([resp.data]));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = arquivo.name.replace(/\.pdf$/i, '_extraido.xlsx');
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    // Com responseType:'blob', erros HTTP também chegam como Blob — ler como texto
+    if (e.response?.data instanceof Blob) {
+      const texto = await e.response.data.text();
+      let detalhe = 'Erro ao converter o PDF.';
+      try { detalhe = JSON.parse(texto).detail || detalhe; } catch {}
+      throw new Error(detalhe);
+    }
+    throw e;
+  }
 }
 
 export async function exportarRelatorio(payload) {

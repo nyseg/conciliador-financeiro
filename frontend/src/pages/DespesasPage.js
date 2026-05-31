@@ -87,7 +87,8 @@ export default function DespesasPage({ setProcessando }) {
     try {
       await baixarExcelDoPdf(fatura);
     } catch (e) {
-      const msg = e.response?.data?.detail || 'Erro ao converter o PDF.';
+      // baixarExcelDoPdf já lê o blob e coloca em e.message
+      const msg = e.message || e.response?.data?.detail || 'Erro ao converter o PDF.';
       setErro('❌ ' + msg);
     } finally {
       setBaixandoExcel(false);
