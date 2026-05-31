@@ -1,11 +1,7 @@
 services:
   - type: web
     name: conciliador-financeiro-api
-    env: python
+    env: docker
     plan: free
     rootDir: backend
-    buildCommand: DEBIAN_FRONTEND=noninteractive apt-get update -qq && apt-get install -y -q tesseract-ocr tesseract-ocr-por && pip install --prefer-binary -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.0"
+    dockerfilePath: ./Dockerfile
