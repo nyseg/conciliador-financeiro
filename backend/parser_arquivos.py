@@ -378,13 +378,27 @@ def _ler_dataframe(conteudo: bytes, nome: str) -> pd.DataFrame:
 def _extrair_colunas_pdf_rapido(conteudo: bytes) -> list:
     """
     Detecção RÁPIDA de colunas em PDFs textuais (sem OCR, sem renderização).
-    Usa pdfplumber para tentar encontrar tabelas com cabeçalhos reais.
-    Retorna [] se o PDF for baseado em imagem (sem texto extraível).
+    Só retorna colunas se a tabela parecer uma listagem de transações financeiras,
+    ou seja, tiver ao menos uma coluna de VALOR e uma de DATA ou DESCRIÇÃO.
+    Retorna [] para PDFs imagem ou tabelas de resumo (boleto, totais, etc.).
     """
     palavras_resumo = {
         'fatura anterior', 'total', 'saldo', 'pagamento',
         'limite', 'encargo', 'juros', 'vencimento',
     }
+    # Keywords que indicam colunas de transação
+    kw_data  = {'data', 'date', 'dt', 'competência', 'competencia',
+                'lançamento', 'lancamento', 'movimento'}
+    kw_desc  = {'descrição', 'descricao', 'description', 'histórico', 'historico',
+                'estabelecimento', 'fornecedor', 'memo', 'transação', 'transacao',
+                'beneficiario', 'portador'}
+    kw_valor = {'valor', 'value', 'amount', 'r$', ' vl', 'débito', 'debito',
+                'crédito', 'credito', 'compra'}
+
+    def _tem(col: str, kws: set) -> bool:
+        cl = col.lower()
+        return any(kw in cl for kw in kws)
+
     try:
         with pdfplumber.open(io.BytesIO(conteudo)) as pdf:
             for page in pdf.pages:
@@ -396,13 +410,18 @@ def _extrair_colunas_pdf_rapido(conteudo: bytes) -> list:
                     header = [h for h in header if h]
                     if len(header) < 2:
                         continue
-                    # Rejeita tabelas de resumo (mesma lógica de _parsear_pdf)
+                    # Rejeita tabelas cujos headers são todos de resumo
                     if all(h.lower() in palavras_resumo or h == '' for h in header):
                         continue
-                    return header
+                    # Só aceita se tiver coluna de valor E (data ou descrição)
+                    tem_v = any(_tem(h, kw_valor) for h in header)
+                    tem_d = any(_tem(h, kw_data)  for h in header)
+                    tem_e = any(_tem(h, kw_desc)  for h in header)
+                    if tem_v and (tem_d or tem_e):
+                        return header
     except Exception:
         pass
-    return []  # PDF baseado em imagem — OCR necessário
+    return []  # PDF imagem ou sem tabela de transações — OCR cuida
 
 
 def detectar_colunas(conteudo: bytes, nome: str) -> list:
