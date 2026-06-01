@@ -18,7 +18,7 @@ from exportar import gerar_excel
 # Banco de dados — opcional, só carrega se DATABASE_URL estiver configurado
 # ---------------------------------------------------------------------------
 try:
-    from database import engine, Base, get_db
+    from database import engine, Base, get_db, SessionLocal
     from models import Analista, Cliente, PerfilConfiguracao, Conciliacao, Arquivo
     from auth import hash_senha, verificar_senha, criar_token, get_analista_atual
     _DB_OK = True
@@ -348,6 +348,8 @@ async def listar_perfis_clientes():
 async def registro(body: RegistroSchema):
     if not _DB_OK:
         raise HTTPException(status_code=503, detail="Banco de dados não configurado")
+
+    # Validação de força da senha
     import re as _re
     erros_senha = []
     if len(body.senha) < 8:
@@ -360,14 +362,20 @@ async def registro(body: RegistroSchema):
         erros_senha.append("pelo menos um caractere especial (!@#$%...)")
     if erros_senha:
         raise HTTPException(status_code=400, detail="Senha inválida: " + ", ".join(erros_senha))
-    from database import get_db as _get_db
-    db = next(_get_db())
+
+    # Garante que as tabelas existem (idempotente)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as _e:
+        raise HTTPException(status_code=503, detail=f"Erro ao criar tabelas no banco: {_e}")
+
+    # Cria o analista
+    db = SessionLocal()
     try:
         existente = db.query(Analista).filter(Analista.email == body.email).first()
         if existente:
             raise HTTPException(status_code=409, detail="E-mail já cadastrado")
         analista = Analista(
-            id=str(_uuid.uuid4()),
             nome=body.nome,
             email=body.email,
             senha_hash=hash_senha(body.senha),
@@ -375,6 +383,11 @@ async def registro(body: RegistroSchema):
         db.add(analista)
         db.commit()
         return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar conta: {str(e)}")
     finally:
         db.close()
 
@@ -383,8 +396,7 @@ async def registro(body: RegistroSchema):
 async def login(body: LoginSchema):
     if not _DB_OK:
         raise HTTPException(status_code=503, detail="Banco de dados não configurado")
-    from database import get_db as _get_db
-    db = next(_get_db())
+    db = SessionLocal()
     try:
         analista = db.query(Analista).filter(Analista.email == body.email).first()
         if not analista or not verificar_senha(body.senha, analista.senha_hash):
