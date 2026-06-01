@@ -150,6 +150,35 @@ def health():
 # ===========================================================================
 # DIAGNÓSTICO OCR
 # ===========================================================================
+@app.get("/api/status")
+def status_completo():
+    """Diagnóstico completo: OCR + banco de dados."""
+    import shutil
+    resultado = {"db_ok": _DB_OK}
+
+    # PostgreSQL
+    try:
+        if _DB_OK and engine is not None:
+            with engine.connect() as conn:
+                conn.execute(__import__('sqlalchemy').text("SELECT 1"))
+            resultado["postgres"] = {"conectado": True}
+        else:
+            resultado["postgres"] = {"conectado": False, "motivo": "DATABASE_URL não configurada ou importação falhou"}
+    except Exception as e:
+        resultado["postgres"] = {"conectado": False, "erro": str(e)}
+
+    # Tesseract
+    tess_path = shutil.which("tesseract")
+    resultado["tesseract_path"] = tess_path
+    try:
+        import pytesseract
+        resultado["tesseract"] = {"instalado": True, "versao": str(pytesseract.get_tesseract_version())}
+    except Exception as e:
+        resultado["tesseract"] = {"instalado": False, "erro": str(e)}
+
+    return resultado
+
+
 @app.get("/api/status-ocr")
 def status_ocr():
     """Diagnóstico: verifica se Tesseract, PyMuPDF e Pillow estão instalados."""
