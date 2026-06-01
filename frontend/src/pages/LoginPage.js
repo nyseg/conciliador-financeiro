@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { login as apiLogin } from '../api';
-import { acordarServidor } from '../utils/servidor';
 
 const COR_PRIMARIA = '#1A1A2E';
 const COR_VERDE    = '#1D9E75';
@@ -11,45 +10,22 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate  = useNavigate();
 
-  const [email, setEmail]         = useState('');
-  const [senha, setSenha]         = useState('');
-  const [erro, setErro]           = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [acordando, setAcordando] = useState(false);
-  const [tentativa, setTentativa] = useState(0);
-
-  // Pinga o servidor em background ao carregar a página
-  // (aquece o Render antes do usuário terminar de preencher)
-  useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/`, {
-      signal: AbortSignal.timeout(8000),
-    }).catch(() => {});
-  }, []);
+  const [email, setEmail]     = useState('');
+  const [senha, setSenha]     = useState('');
+  const [erro, setErro]       = useState('');
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
     setLoading(true);
-
-    // Acorda o servidor se necessário
-    setAcordando(true);
-    setTentativa(0);
-    const online = await acordarServidor((t) => setTentativa(t));
-    setAcordando(false);
-
-    if (!online) {
-      setErro('❌ Não foi possível conectar ao servidor. Verifique se o backend está no ar no Render.');
-      setLoading(false);
-      return;
-    }
-
     try {
       const res = await apiLogin({ email, senha });
       login(res.access_token, res.analista);
       navigate('/clientes', { replace: true });
     } catch (err) {
       if (!err.response) {
-        setErro('🔌 Servidor não respondeu. Tente novamente em alguns segundos.');
+        setErro('🔌 Servidor não respondeu. O servidor pode estar acordando — aguarde 30 segundos e tente novamente.');
       } else {
         setErro(err.response?.data?.detail || `Erro ${err.response.status} ao fazer login.`);
       }
@@ -58,8 +34,6 @@ export default function LoginPage() {
     }
   }
 
-  const ocupado = loading || acordando;
-
   return (
     <div style={{
       minHeight: '100vh', background: '#F4F4F8',
@@ -67,7 +41,6 @@ export default function LoginPage() {
       alignItems: 'center', justifyContent: 'center',
       fontFamily: 'Inter, system-ui, sans-serif', padding: '24px',
     }}>
-      {/* Logo */}
       <div style={{ marginBottom: 32, textAlign: 'center' }}>
         <div style={{ fontSize: 32, marginBottom: 8 }}>💼</div>
         <div style={{ fontWeight: 800, fontSize: 22, color: COR_PRIMARIA, letterSpacing: '-0.5px' }}>
@@ -78,7 +51,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Card */}
       <div style={{
         background: '#fff', borderRadius: 16, padding: '36px 40px',
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)', width: '100%', maxWidth: 420,
@@ -100,17 +72,6 @@ export default function LoginPage() {
               required placeholder="••••••" style={estiloInput} />
           </div>
 
-          {/* Acordando servidor */}
-          {acordando && (
-            <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8,
-              padding: '10px 14px', fontSize: 13, color: '#7A4500', marginBottom: 16,
-              display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={estiloSpinner} />
-              ☕ Servidor acordando… tentativa {tentativa}/12
-            </div>
-          )}
-
-          {/* Erro */}
           {erro && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626',
               borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
@@ -118,13 +79,13 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button type="submit" disabled={ocupado} style={{
-            width: '100%', background: ocupado ? '#9CA3AF' : COR_VERDE,
+          <button type="submit" disabled={loading} style={{
+            width: '100%', background: loading ? '#9CA3AF' : COR_VERDE,
             color: '#fff', border: 'none', borderRadius: 10, padding: '13px',
-            fontSize: 15, fontWeight: 700, cursor: ocupado ? 'not-allowed' : 'pointer',
+            fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
-            {ocupado ? <><span style={estiloSpinner} /> Aguardando servidor…</> : 'Entrar'}
+            {loading ? <><span style={estiloSpinner} /> Entrando...</> : 'Entrar'}
           </button>
         </form>
 
@@ -147,4 +108,4 @@ const estiloInput = { width: '100%', border: '1.5px solid #D1D5DB', borderRadius
   boxSizing: 'border-box', fontFamily: 'inherit' };
 const estiloSpinner = { display: 'inline-block', width: 14, height: 14,
   border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: '#fff',
-  borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 };
+  borderRadius: '50%', animation: 'spin 0.8s linear infinite' };
