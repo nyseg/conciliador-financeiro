@@ -7,6 +7,8 @@ const BADGE = {
   ok_parcela:      { bg: '#EEF4FD', color: '#1A5FA8', label: '📋 Parcela' },
   ok_categoria:    { bg: '#F0FBF6', color: '#0F6E56', label: '📦 Agrupado' },
   ok_manual:       { bg: '#EEF4FD', color: '#1A5FA8', label: '🔗 Manual' },
+  ok_data_div:     { bg: '#FEF3E2', color: '#8A4A00', label: '⚠️ Data divergente' },
+  ok_encargo:      { bg: '#F0FBF6', color: '#0F6E56', label: '✅ Encargo ERP' },
   ausente_erp:     { bg: '#FCEBEB', color: '#A32D2D', label: '❌ Sem ERP' },
   ausente_fatura:  { bg: '#FAEEDA', color: '#854F0B', label: '⚠️ Sem fatura' },
   divergencia:     { bg: '#FAEEDA', color: '#854F0B', label: '⚠️ Divergência' },
@@ -69,7 +71,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
 
   const podeMatch = status => onManualMatch && (status === 'ausente_erp' || status === 'ausente_fatura');
   const qtd = s => itens.filter(i => i.status === s).length;
-  const qtdOk = () => itens.filter(i => ['ok','ok_parcela','ok_categoria','ok_manual'].includes(i.status)).length;
+  const qtdOk = () => itens.filter(i => ['ok','ok_parcela','ok_categoria','ok_manual','ok_data_div','ok_encargo'].includes(i.status)).length;
 
   // Colunas
   const temParcela = modo === 'despesas' && itens.some(i => i.parcela);
@@ -152,6 +154,8 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
           {qtd('ok_parcela') > 0   && <option value="ok_parcela">📋 Parcelas ({qtd('ok_parcela')})</option>}
           {qtd('ok_categoria') > 0 && <option value="ok_categoria">📦 Agrupados ({qtd('ok_categoria')})</option>}
           {qtd('ok_manual') > 0    && <option value="ok_manual">🔗 Manuais ({qtd('ok_manual')})</option>}
+          {qtd('ok_data_div') > 0  && <option value="ok_data_div">⚠️ Data divergente ({qtd('ok_data_div')})</option>}
+          {qtd('ok_encargo') > 0   && <option value="ok_encargo">✅ Encargo ERP ({qtd('ok_encargo')})</option>}
           {modo === 'despesas' && <>
             <option value="ausente_erp">❌ Sem ERP ({qtd('ausente_erp')})</option>
             <option value="ausente_fatura">⚠️ Sem fatura ({qtd('ausente_fatura')})</option>

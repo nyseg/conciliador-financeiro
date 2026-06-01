@@ -4,9 +4,14 @@ from fastapi.responses import StreamingResponse
 import uvicorn
 import io
 import json
+import os
 from parser_arquivos import parsear_fatura_cartao, parsear_erp
 from conciliacao import conciliar
 from exportar import gerar_excel
+
+# Diretório para perfis de clientes
+_PERFIS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'perfis_clientes')
+os.makedirs(_PERFIS_DIR, exist_ok=True)
 
 app = FastAPI(title="Conciliador Financeiro API", version="1.0.0")
 
@@ -155,6 +160,49 @@ async def preview_colunas(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/perfil-cliente")
+async def salvar_perfil_cliente(perfil: dict):
+    """Salva perfil de configuração de um cliente em backend/perfis_clientes/{nome}.json"""
+    nome = str(perfil.get('nome_cliente', '')).strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="nome_cliente é obrigatório")
+    try:
+        caminho = os.path.join(_PERFIS_DIR, f"{nome}.json")
+        with open(caminho, 'w', encoding='utf-8') as f:
+            json.dump(perfil, f, ensure_ascii=False, indent=2)
+        return {"ok": True, "nome": nome}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/perfil-cliente/{nome}")
+async def carregar_perfil_cliente(nome: str):
+    """Carrega perfil de um cliente pelo nome."""
+    caminho = os.path.join(_PERFIS_DIR, f"{nome}.json")
+    if not os.path.exists(caminho):
+        raise HTTPException(status_code=404, detail=f"Perfil '{nome}' não encontrado")
+    try:
+        with open(caminho, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/perfis-clientes")
+async def listar_perfis_clientes():
+    """Lista todos os perfis de clientes salvos."""
+    try:
+        nomes = [
+            f[:-5]  # remove .json
+            for f in os.listdir(_PERFIS_DIR)
+            if f.endswith('.json')
+        ]
+        nomes.sort()
+        return {"perfis": nomes}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/conciliar-despesas")
 async def conciliar_despesas(
     fatura: UploadFile = File(...),
@@ -163,6 +211,7 @@ async def conciliar_despesas(
     mapeamento_fatura: str = Form("{}"),   # JSON mapeamento colunas fatura
     periodo_mes: str = Form(""),           # ex: "2026-03"
     modo_erp: str = Form("transacao"),     # "transacao" | "categoria" | "misto"
+    perfil_cliente: str = Form("{}"),      # JSON com perfil do cliente
 ):
     """Concilia fatura do cartão corporativo com ERP contas a pagar."""
     try:
@@ -170,12 +219,14 @@ async def conciliar_despesas(
         erp_bytes    = await erp.read()
         mapa         = json.loads(mapeamento)
         mapa_fatura  = json.loads(mapeamento_fatura)
+        perfil       = json.loads(perfil_cliente) if perfil_cliente else {}
 
         df_fatura = parsear_fatura_cartao(fatura_bytes, fatura.filename or "",
                                           mapeamento=mapa_fatura or None)
         df_erp    = parsear_erp(erp_bytes, erp.filename or "", mapa)
 
-        resultado = conciliar(df_fatura, df_erp, periodo_mes, modo="despesas", modo_erp=modo_erp)
+        resultado = conciliar(df_fatura, df_erp, periodo_mes, modo="despesas",
+                              modo_erp=modo_erp, perfil=perfil)
         return resultado
 
     except Exception as e:

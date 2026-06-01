@@ -15,7 +15,7 @@ export async function previewColunas(arquivo, tipo) {
   return data;
 }
 
-export async function conciliarDespesas({ fatura, erp, mapeamento, mapeamentoFatura, periodoMes, modoErp }) {
+export async function conciliarDespesas({ fatura, erp, mapeamento, mapeamentoFatura, periodoMes, modoErp, perfilCliente }) {
   const fd = new FormData();
   fd.append('fatura', fatura);
   fd.append('erp', erp);
@@ -23,7 +23,23 @@ export async function conciliarDespesas({ fatura, erp, mapeamento, mapeamentoFat
   fd.append('mapeamento_fatura', JSON.stringify(mapeamentoFatura || {}));
   fd.append('periodo_mes', periodoMes || '');
   fd.append('modo_erp', modoErp || 'transacao');
+  fd.append('perfil_cliente', JSON.stringify(perfilCliente || {}));
   const { data } = await api.post('/api/conciliar-despesas', fd);
+  return data;
+}
+
+export async function listarPerfis() {
+  const { data } = await api.get('/api/perfis-clientes');
+  return data;
+}
+
+export async function carregarPerfil(nome) {
+  const { data } = await api.get(`/api/perfil-cliente/${encodeURIComponent(nome)}`);
+  return data;
+}
+
+export async function salvarPerfil(perfil) {
+  const { data } = await api.post('/api/perfil-cliente', perfil);
   return data;
 }
 

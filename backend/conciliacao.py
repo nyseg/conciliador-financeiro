@@ -151,17 +151,22 @@ def _encontrar_grupo_greedy(candidatos: list, target_cents: int,
 
 
 def _matching_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
-                       modo_erp: str = 'transacao') -> list:
+                       modo_erp: str = 'transacao', perfil: dict = None) -> list:
     """
-    Conciliação em 4 camadas:
-      1. Match exato  — valor == valor  AND  data ± 5 dias
-      2. Match aproximado — valor == valor  AND  data ± 15/45 dias
-                            (45 dias quando parcela detectada)
-                            + score mínimo de similaridade
-      3. Match por categoria — modo 'categoria' ou 'misto':
-                               grupos de itens da fatura ≈ entrada agregada do ERP
-      4. Sem correspondência
+    Conciliação em múltiplas camadas:
+      1. Match exato  — valor == valor  AND  data ± tolerancia_dias
+      2. Match aproximado — valor == valor  AND  data ± janela  + similaridade
+         2b. Data divergente — valor exato, data > tolerancia mas <= 45, sim > 0.6
+      3. Parcelamento Cenário A — usa campo de parcela no ERP
+         Parcelamento Cenário B — busca valor da parcela com tolerância de data
+         Parcelamento Cenário C — busca soma do total parcelado no ERP
+      4. Match por categoria — modo 'categoria' ou 'misto'
+      5. Encargos — busca encargos da fatura em descrições do ERP
+      6. Sem correspondência
     """
+    perfil = perfil or {}
+    tolerancia_dias = int(perfil.get('tolerancia_dias', 5))
+
     fat = df_fatura.reset_index(drop=True).copy()
     erp = df_erp.reset_index(drop=True).copy()
 
@@ -175,7 +180,7 @@ def _matching_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
         v = round(float(e.get('valor') or 0) * 100)
         erp_idx[v].append(ei)
 
-    # ══ CAMADA 1 — Match exato (valor + data ± 5 dias) ═══════════════════════
+    # ══ CAMADA 1 — Match exato (valor + data ± tolerancia_dias) ══════════════
     for fi, f in fat.iterrows():
         v_c  = round(float(f.get('valor') or 0) * 100)
         d_f  = f.get('data')
@@ -186,7 +191,7 @@ def _matching_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
                 continue
             d_e  = erp.loc[ei, 'data']
             dias = abs((d_f - d_e).days) if (pd.notna(d_f) and pd.notna(d_e)) else 0
-            if dias <= 5 and dias < best_dias:
+            if dias <= tolerancia_dias and dias < best_dias:
                 best_dias = dias
                 best_ei   = ei
 
@@ -208,32 +213,137 @@ def _matching_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
         # Parcelas podem chegar com até 45 dias de diferença de data de lançamento
         janela = 45 if parcela_info else 15
 
-        best_ei, best_score = None, -1.0
+        best_ei, best_score, best_dias_ei = None, -1.0, 0
         for ei in erp_idx.get(v_c, []):
             if ei in erp_usado:
                 continue
             d_e  = erp.loc[ei, 'data']
             dias = abs((d_f - d_e).days) if (pd.notna(d_f) and pd.notna(d_e)) else 0
-            if dias > janela:
+            if dias > 45:
                 continue
             sim   = _similaridade(desc_f, str(erp.loc[ei, 'descricao']))
-            score = 0.55 * (1 - dias / janela) + 0.45 * sim
+            if dias <= janela:
+                score = 0.55 * (1 - dias / max(janela, 1)) + 0.45 * sim
+            else:
+                score = 0.3 * sim
             if score > best_score:
                 best_score = score
                 best_ei    = ei
+                best_dias_ei = dias
 
         # Exige score mínimo para evitar falsos positivos
         if best_ei is not None and best_score >= 0.25:
-            status = 'ok_parcela' if parcela_info else 'ok'
-            resultado[fi] = _item_match(
-                f, erp.loc[best_ei], status,
-                'parcela' if parcela_info else 'aproximado',
-                parcela_info
-            )
+            desc_erp  = str(erp.loc[best_ei, 'descricao'])
+            sim_final = _similaridade(desc_f, desc_erp)
+            # Data divergente: valor exato, data fora da tolerância normal, sim > 0.6
+            if best_dias_ei > tolerancia_dias and best_dias_ei <= 45 and sim_final > 0.6:
+                status    = 'ok_data_div'
+                modo_m    = 'data_divergente'
+                parc_info = None
+            else:
+                status = 'ok_parcela' if parcela_info else 'ok'
+                modo_m = 'parcela' if parcela_info else 'aproximado'
+                parc_info = parcela_info
+            resultado[fi] = _item_match(f, erp.loc[best_ei], status, modo_m, parc_info)
             erp_usado.add(best_ei)
             fat_usado.add(fi)
 
-    # ══ CAMADA 3 — Match por categoria (agrupamento) ═════════════════════════
+    # ══ CAMADA 3 — Parcelamento (Cenários A, B, C) ═══════════════════════════
+    campo_parcelas_erp = perfil.get('campo_parcelas_erp', '')
+    cenario = str(perfil.get('cenario_parcelamento', 'B')).upper()
+
+    fat_parcelados = [
+        (fi, fat.loc[fi])
+        for fi in fat.index
+        if fi not in fat_usado and _detectar_parcela(str(fat.loc[fi].get('descricao', '')))
+    ]
+
+    # Cenário A — ERP tem campo de número de parcela
+    if cenario == 'A' and campo_parcelas_erp:
+        for fi, f in fat_parcelados:
+            if fi in fat_usado:
+                continue
+            parcela_info = _detectar_parcela(str(f.get('descricao', '')))
+            if not parcela_info:
+                continue
+            v_c = round(float(f.get('valor') or 0) * 100)
+            num_parcela = parcela_info['numero']
+            for ei in erp_idx.get(v_c, []):
+                if ei in erp_usado:
+                    continue
+                erp_row = erp.loc[ei]
+                erp_parc_val = str(erp_row.get(campo_parcelas_erp, '') or '').strip()
+                try:
+                    if int(float(erp_parc_val)) == num_parcela:
+                        resultado[fi] = _item_match(f, erp_row, 'ok_parcela', 'parcela_a', parcela_info)
+                        erp_usado.add(ei)
+                        fat_usado.add(fi)
+                        break
+                except (ValueError, TypeError):
+                    pass
+
+    # Cenário B — ERP só tem valor da competência (parcela individual)
+    # Também usado como fallback do cenário A
+    if cenario in ('B', 'A'):
+        for fi, f in fat_parcelados:
+            if fi in fat_usado:
+                continue
+            parcela_info = _detectar_parcela(str(f.get('descricao', '')))
+            if not parcela_info:
+                continue
+            v_c = round(float(f.get('valor') or 0) * 100)
+            d_f = f.get('data')
+            best_ei, best_dias = None, float('inf')
+            for ei in erp_idx.get(v_c, []):
+                if ei in erp_usado:
+                    continue
+                d_e  = erp.loc[ei, 'data']
+                dias = abs((d_f - d_e).days) if (pd.notna(d_f) and pd.notna(d_e)) else 0
+                if dias <= 45 and dias < best_dias:
+                    best_dias = dias
+                    best_ei   = ei
+            if best_ei is not None:
+                resultado[fi] = _item_match(f, erp.loc[best_ei], 'ok_parcela', 'parcela_b', parcela_info)
+                erp_usado.add(best_ei)
+                fat_usado.add(fi)
+
+    # Cenário C — ERP lançou o total das parcelas
+    if cenario == 'C':
+        def _desc_base(desc: str) -> str:
+            s = re.sub(r'\s*\d{1,2}[/\-]\d{1,2}\s*', ' ', str(desc).upper()).strip()
+            s = re.sub(r'PARC(?:ELA)?\s*\d+', '', s).strip()
+            return s[:40]
+
+        grupos_c: dict = defaultdict(list)
+        for fi, f in fat_parcelados:
+            if fi in fat_usado:
+                continue
+            base = _desc_base(str(f.get('descricao', '')))
+            grupos_c[base].append(fi)
+
+        for base, fis in grupos_c.items():
+            pending = [fi for fi in fis if fi not in fat_usado]
+            if not pending:
+                continue
+            soma_cents = sum(round(float(fat.loc[fi].get('valor') or 0) * 100) for fi in pending)
+            best_ei = None
+            best_diff = float('inf')
+            for ei in erp.index:
+                if ei in erp_usado:
+                    continue
+                erp_cents = round(float(erp.loc[ei].get('valor') or 0) * 100)
+                diff = abs(erp_cents - soma_cents)
+                if diff <= soma_cents * 0.01 and diff < best_diff:
+                    best_diff = diff
+                    best_ei   = ei
+            if best_ei is not None:
+                for fi in pending:
+                    parcela_info = _detectar_parcela(str(fat.loc[fi].get('descricao', '')))
+                    resultado[fi] = _item_match(fat.loc[fi], erp.loc[best_ei], 'ok_parcela', 'parcela_c', parcela_info)
+                    fat_usado.add(fi)
+                erp_usado.add(best_ei)
+
+    # ══ CAMADA 4 — Match por categoria (agrupamento) ═════════════════════════
     if modo_erp in ('categoria', 'misto'):
         fat_rest = [(fi, fat.loc[fi]) for fi in fat.index if fi not in fat_usado]
         erp_rest = [(ei, erp.loc[ei]) for ei in erp.index if ei not in erp_usado]
@@ -249,10 +359,43 @@ def _matching_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
                     )
                     fat_usado.add(fi)
                 erp_usado.add(ei)
-                # Atualiza lista de restantes
                 fat_rest = [(fi, fat.loc[fi]) for fi in fat.index if fi not in fat_usado]
 
-    # ══ CAMADA 4 — Sem correspondência ═══════════════════════════════════════
+    # ══ CAMADA 5 — Encargos ══════════════════════════════════════════════════
+    _KW_ENCARGO_ERP = (
+        'JUROS CARTÃO', 'JUROS CARTAO', 'JUROS CRÉDITO', 'JUROS CREDITO',
+        'JUROS FATURA', 'MULTA', 'ENCARGO', 'IOF', 'MORA',
+    )
+    for fi, f in fat.iterrows():
+        if fi in fat_usado:
+            continue
+        tipo_fat = str(f.get('tipo', '')).lower()
+        if tipo_fat != 'encargo':
+            continue
+        v_enc = float(f.get('valor') or 0)
+        if v_enc <= 0:
+            continue
+        best_ei = None
+        best_diff = float('inf')
+        for ei in erp.index:
+            if ei in erp_usado:
+                continue
+            desc_erp = str(erp.loc[ei, 'descricao'] or '').upper()
+            if not any(kw in desc_erp for kw in _KW_ENCARGO_ERP):
+                continue
+            v_erp = float(erp.loc[ei, 'valor'] or 0)
+            if v_erp <= 0:
+                continue
+            diff_pct = abs(v_erp - v_enc) / v_enc if v_enc > 0 else float('inf')
+            if diff_pct <= 0.05 and diff_pct < best_diff:
+                best_diff = diff_pct
+                best_ei   = ei
+        if best_ei is not None:
+            resultado[fi] = _item_match(f, erp.loc[best_ei], 'ok_encargo', 'encargo_erp')
+            erp_usado.add(best_ei)
+            fat_usado.add(fi)
+
+    # ══ CAMADA 6 — Sem correspondência ═══════════════════════════════════════
     final = []
     for fi in fat.index:
         final.append(resultado.get(fi) or _item_sem_erp(fat.loc[fi]))
@@ -274,9 +417,10 @@ def conciliar(
     modo: str = "despesas",
     df_banco: Optional[pd.DataFrame] = None,
     modo_erp: str = "transacao",
+    perfil: dict = None,
 ) -> dict:
     if modo == "despesas":
-        return _conciliar_despesas(df_principal, df_erp, periodo_mes, modo_erp)
+        return _conciliar_despesas(df_principal, df_erp, periodo_mes, modo_erp, perfil or {})
     else:
         return _conciliar_receitas(df_principal, df_erp, df_banco, periodo_mes)
 
@@ -286,7 +430,9 @@ def conciliar(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _conciliar_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
-                         periodo_mes: str, modo_erp: str = 'transacao') -> dict:
+                         periodo_mes: str, modo_erp: str = 'transacao',
+                         perfil: dict = None) -> dict:
+    perfil = perfil or {}
 
     # ── Filtra ERP pelo período ───────────────────────────────────────────────
     df_erp_f = df_erp.copy()
@@ -299,16 +445,32 @@ def _conciliar_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
         except Exception:
             pass
 
-    # ── Totais gerais ─────────────────────────────────────────────────────────
-    compras  = df_fatura[df_fatura.get('tipo', pd.Series('compra', index=df_fatura.index)) == 'compra'] \
-               if 'tipo' in df_fatura.columns else df_fatura
-    encargos = df_fatura[df_fatura['tipo'] == 'encargo'] \
-               if 'tipo' in df_fatura.columns else pd.DataFrame()
+    # ── Separação de tipos (Etapa 7) ──────────────────────────────────────────
+    if 'tipo' in df_fatura.columns:
+        compras      = df_fatura[df_fatura['tipo'].isin(['compra', 'encargo'])]
+        pagamentos   = df_fatura[df_fatura['tipo'] == 'pagamento']
+        antecipacoes = df_fatura[df_fatura['tipo'] == 'antecipacao']
+        encargos     = df_fatura[df_fatura['tipo'] == 'encargo']
+    else:
+        compras      = df_fatura
+        pagamentos   = pd.DataFrame()
+        antecipacoes = pd.DataFrame()
+        encargos     = pd.DataFrame()
 
-    total_fatura  = round(float(df_fatura['valor'].sum()), 2) if 'valor' in df_fatura.columns else 0
+    total_compras_encargos = round(float(compras['valor'].sum()), 2) if not compras.empty else 0
+    total_pagamentos       = round(float(pagamentos['valor'].sum()), 2) if not pagamentos.empty else 0
+    total_antecipacoes     = round(float(antecipacoes['valor'].sum()), 2) if not antecipacoes.empty else 0
+    valor_liquido          = round(total_compras_encargos - total_pagamentos - total_antecipacoes, 2)
+
+    total_fatura   = round(float(df_fatura['valor'].sum()), 2) if 'valor' in df_fatura.columns else 0
     total_encargos = round(float(encargos['valor'].sum()), 2) if not encargos.empty else 0
-    total_erp     = round(float(df_erp_f['valor'].sum()), 2) if 'valor' in df_erp_f.columns else 0
-    diferenca     = round(total_fatura - total_erp, 2)
+    total_erp      = round(float(df_erp_f['valor'].sum()), 2) if 'valor' in df_erp_f.columns else 0
+    diferenca      = round(total_fatura - total_erp, 2)
+
+    # ── Validação do agrupamento (Etapa 7) ────────────────────────────────────
+    total_erp_filtrado = round(float(df_erp_f['valor'].sum()), 2) if 'valor' in df_erp_f.columns else 0
+    diff_agrupamento   = round(valor_liquido - total_erp_filtrado, 2)
+    agrupamento_ok     = abs(diff_agrupamento) < 0.02
 
     # ── Resumo de faturas no ERP ──────────────────────────────────────────────
     resumo_faturas = []
@@ -339,11 +501,12 @@ def _conciliar_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
                 'lancado_erp': False,
             })
 
-    # ── Matching 4 camadas ────────────────────────────────────────────────────
-    itens = _matching_despesas(df_fatura, df_erp_f, modo_erp)
+    # ── Matching multicamadas ─────────────────────────────────────────────────
+    itens = _matching_despesas(df_fatura, df_erp_f, modo_erp, perfil)
 
     # ── Contadores ────────────────────────────────────────────────────────────
-    ok          = sum(1 for r in itens if r['status'] in ('ok', 'ok_parcela', 'ok_categoria', 'ok_manual'))
+    _ok_statuses = ('ok', 'ok_parcela', 'ok_categoria', 'ok_manual', 'ok_data_div', 'ok_encargo')
+    ok          = sum(1 for r in itens if r['status'] in _ok_statuses)
     sem_erp     = sum(1 for r in itens if r['status'] == 'ausente_erp')
     sem_fatura  = sum(1 for r in itens if r['status'] == 'ausente_fatura')
     parcelas    = sum(1 for r in itens if r['status'] == 'ok_parcela')
@@ -364,6 +527,14 @@ def _conciliar_despesas(df_fatura: pd.DataFrame, df_erp: pd.DataFrame,
             'total_erp':               total_erp,
             'diferenca':               diferenca,
             'total_encargos_pendentes': total_encargos,
+            'total_pagamentos':        total_pagamentos,
+            'total_antecipacoes':      total_antecipacoes,
+            'valor_liquido':           valor_liquido,
+            'validacao_agrupamento': {
+                'ok':               agrupamento_ok,
+                'diferenca':        diff_agrupamento,
+                'total_erp_agrupado': total_erp_filtrado,
+            },
         },
         'faturas_erp':        resumo_faturas,
         'itens':              itens,

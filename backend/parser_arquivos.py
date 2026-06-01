@@ -486,8 +486,10 @@ def _normalizar_fatura_pdf(df: pd.DataFrame) -> pd.DataFrame:
     if 'valor' not in df.columns:
         return pd.DataFrame()
 
+    valor_signed = _limpar_valor_col(df['valor'])
+
     result = pd.DataFrame()
-    result['valor'] = _limpar_valor_col(df['valor']).abs().round(2)
+    result['valor'] = valor_signed.abs().round(2)
 
     if 'data' in df.columns:
         result['data'] = pd.to_datetime(
@@ -503,12 +505,52 @@ def _normalizar_fatura_pdf(df: pd.DataFrame) -> pd.DataFrame:
     result['cartao'] = (
         df['cartao'].astype(str) if 'cartao' in df.columns else 'Fatura'
     )
-    result['tipo'] = (
-        df['tipo'].astype(str) if 'tipo' in df.columns else 'compra'
-    )
+
+    # Se já tiver coluna tipo (OFX/xlsx), usa ela; senão classifica pelo valor com sinal
+    if 'tipo' in df.columns:
+        result['tipo'] = df['tipo'].astype(str)
+    else:
+        result['tipo'] = [
+            _classificar_tipo_linha(desc, vs)
+            for desc, vs in zip(result['descricao'], valor_signed)
+        ]
 
     mask = result['valor'] > 0
     return result[mask].reset_index(drop=True)
+
+
+# ── CLASSIFICAÇÃO DE LINHAS DA FATURA ───────────────────────────────────────
+
+_KW_PAGAMENTO = ('PAGAMENTO', 'PGTO FATURA', 'PAGTO FAT', 'PAG FATURA', 'PAG. FATURA')
+_KW_ENCARGO   = ('JUROS', 'MULTA', 'IOF', 'MORA', 'ENCARGO')
+
+
+def _classificar_tipo_linha(descricao: str, valor_signed: float) -> str:
+    """
+    Classifica uma linha da fatura como: 'compra', 'encargo', 'pagamento' ou 'antecipacao'.
+
+    Regras (em ordem de prioridade):
+      1. pagamento  — descrição contém keyword de pagamento
+      2. encargo    — linha começa com '(+)' OU descrição contém keyword de encargo
+      3. antecipacao — valor_signed < 0 e não é pagamento (crédito parcial)
+      4. compra     — qualquer outro caso
+    """
+    desc_upper = str(descricao).upper().strip()
+
+    # 1. Pagamento
+    if any(kw in desc_upper for kw in _KW_PAGAMENTO):
+        return 'pagamento'
+
+    # 2. Encargo: começa com "(+)" OU descrição contém keyword
+    if desc_upper.startswith('(+)') or any(kw in desc_upper for kw in _KW_ENCARGO):
+        return 'encargo'
+
+    # 3. Antecipação: crédito (valor negativo) que não é pagamento
+    if valor_signed < 0:
+        return 'antecipacao'
+
+    # 4. Compra (padrão)
+    return 'compra'
 
 
 # ── PARSER FATURA CARTÃO ─────────────────────────────────────────────────────
@@ -588,19 +630,19 @@ def parsear_fatura_cartao(conteudo: bytes, nome: str,
 
 
 def _parsear_fatura_xlsx(ws) -> pd.DataFrame:
-    skip_kw = ['total', 'transações', 'demonstrativo', 'data', 'cotação', 'pagamento de fatura']
+    skip_kw = ['total', 'transações', 'demonstrativo', 'data', 'cotação']
     rows = []
     current_cartao = None
 
     for row in ws.iter_rows(values_only=True):
         col0 = str(row[0]).strip() if row[0] else ''
         # Tenta localizar valor na coluna R$ (índice 7) ou última coluna numérica
-        valor = None
+        valor_signed = None
         for cell in reversed(row):
             try:
                 v = float(cell)
-                if v > 0:
-                    valor = v
+                if v != 0:
+                    valor_signed = v
                     break
             except (TypeError, ValueError):
                 continue
@@ -611,16 +653,17 @@ def _parsear_fatura_xlsx(ws) -> pd.DataFrame:
             current_cartao = m.group(1) if m else col0[-4:]
             continue
 
-        # Encargos: juros, multa, IOF
-        if col0.startswith('(+)') and valor:
+        # Encargos: juros, multa, IOF (linha começa com '(+)')
+        if col0.startswith('(+)') and valor_signed is not None:
             desc = col0.replace('(+)', '').strip()
-            rows.append({'data': None, 'descricao': desc, 'valor': round(valor, 2),
-                         'cartao': current_cartao, 'tipo': 'encargo'})
+            tipo = _classificar_tipo_linha(col0, valor_signed)
+            rows.append({'data': None, 'descricao': desc, 'valor': round(abs(valor_signed), 2),
+                         'cartao': current_cartao, 'tipo': tipo})
             continue
 
         if any(k in col0.lower() for k in skip_kw):
             continue
-        if not valor:
+        if valor_signed is None:
             continue
 
         # Transação: data + descrição na mesma célula
@@ -630,8 +673,10 @@ def _parsear_fatura_xlsx(ws) -> pd.DataFrame:
                 dt = pd.to_datetime(m.group(1), format='%d-%m-%Y')
             except Exception:
                 dt = None
-            rows.append({'data': dt, 'descricao': m.group(2).strip(),
-                         'valor': round(valor, 2), 'cartao': current_cartao, 'tipo': 'compra'})
+            desc = m.group(2).strip()
+            tipo = _classificar_tipo_linha(desc, valor_signed)
+            rows.append({'data': dt, 'descricao': desc,
+                         'valor': round(abs(valor_signed), 2), 'cartao': current_cartao, 'tipo': tipo})
 
     return pd.DataFrame(rows)
 
@@ -671,16 +716,29 @@ def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
     if not col_v or col_v not in df.columns:
         return pd.DataFrame()
 
-    valor = _limpar_valor_col(df[col_v])
-    mask  = valor.abs() > 0
+    valor_signed = _limpar_valor_col(df[col_v])
+    mask  = valor_signed.abs() > 0
     df_f  = df[mask].copy()
 
     if df_f.empty:
         return pd.DataFrame()
 
+    col_desc = col_map.get('descricao', '')
+    descricoes = (
+        df_f[col_desc].astype(str).values
+        if col_desc and col_desc in df_f.columns else [''] * len(df_f)
+    )
+
+    valor_signed_f = valor_signed[mask].values
+    tipos = [
+        _classificar_tipo_linha(desc, vs)
+        for desc, vs in zip(descricoes, valor_signed_f)
+    ]
+
     result            = pd.DataFrame()
-    result['valor']   = valor[mask].abs().round(2).values
-    result['tipo']    = 'compra'
+    result['valor']   = [abs(v) for v in valor_signed_f]
+    result['valor']   = pd.Series(result['valor']).round(2).values
+    result['tipo']    = tipos
 
     col_cartao = col_map.get('cartao', '')
     result['cartao'] = (
@@ -694,11 +752,7 @@ def _parsear_fatura_csv(df: pd.DataFrame) -> pd.DataFrame:
         if col_d and col_d in df_f.columns else pd.NaT
     )
 
-    col_desc = col_map.get('descricao', '')
-    result['descricao'] = (
-        df_f[col_desc].astype(str).values
-        if col_desc and col_desc in df_f.columns else ''
-    )
+    result['descricao'] = descricoes
     return result
 
 
@@ -728,17 +782,29 @@ def _parsear_fatura_generico(df: pd.DataFrame, mapeamento: dict) -> pd.DataFrame
     if not col_v:
         return pd.DataFrame()
 
-    valor = _limpar_valor_col(df[col_v])
+    valor_signed = _limpar_valor_col(df[col_v])
     # Mantém valores positivos (compras) e também abs() de negativos — descarta só zeros
-    mask  = valor.abs() > 0
+    mask  = valor_signed.abs() > 0
     df_f  = df[mask].copy()
 
     if df_f.empty:
         return pd.DataFrame()
 
+    col_desc = _resolve('descricao')
+    descricoes = (
+        df_f[col_desc].astype(str).values
+        if col_desc else [''] * len(df_f)
+    )
+
+    valor_signed_f = valor_signed[mask].values
+    tipos = [
+        _classificar_tipo_linha(desc, vs)
+        for desc, vs in zip(descricoes, valor_signed_f)
+    ]
+
     result          = pd.DataFrame()
-    result['valor'] = valor[mask].abs().round(2).values   # fatura: valor sempre positivo
-    result['tipo']  = 'compra'
+    result['valor'] = pd.Series([abs(v) for v in valor_signed_f]).round(2).values
+    result['tipo']  = tipos
 
     col_cartao = _resolve('cartao')
     result['cartao'] = (
@@ -752,11 +818,7 @@ def _parsear_fatura_generico(df: pd.DataFrame, mapeamento: dict) -> pd.DataFrame
         if col_d else pd.NaT
     )
 
-    col_desc = _resolve('descricao')
-    result['descricao'] = (
-        df_f[col_desc].astype(str).values
-        if col_desc else ''
-    )
+    result['descricao'] = descricoes
     return result
 
 

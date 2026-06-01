@@ -3,7 +3,7 @@ import { CreditCard, Building2, Download, Play, AlertTriangle, RotateCcw } from 
 import UploadCard from '../components/UploadCard';
 import MapeadorColunas from '../components/MapeadorColunas';
 import TabelaResultado from '../components/TabelaResultado';
-import { conciliarDespesas, previewColunas, exportarRelatorio, baixarExcelDoPdf } from '../api';
+import { conciliarDespesas, previewColunas, exportarRelatorio, baixarExcelDoPdf, listarPerfis, carregarPerfil, salvarPerfil } from '../api';
 import { salvarHistorico } from '../utils/historico';
 import { acordarServidor } from '../utils/servidor';
 
@@ -53,11 +53,19 @@ export default function DespesasPage({ setProcessando }) {
   const [erro, setErro]                   = useState('');
   const [baixandoExcel, setBaixandoExcel] = useState(false);
 
+  // Perfil do cliente
+  const [perfil, setPerfil]                         = useState({ tolerancia_dias: 5, cenario_parcelamento: 'B' });
+  const [clientes, setClientes]                     = useState([]);
+  const [clienteSelecionado, setClienteSelecionado] = useState('');
+  const [salvandoPerfil, setSalvandoPerfil]         = useState(false);
+  const [painelPerfilAberto, setPainelPerfilAberto] = useState(false);
+
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) setResultado(JSON.parse(saved));
     } catch (_) {}
+    listarPerfis().then(d => setClientes(d.perfis || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -128,6 +136,7 @@ export default function DespesasPage({ setProcessando }) {
         fatura, erp, mapeamento,
         mapeamentoFatura: faturaEhPdfImagem ? {} : mapeamentoFatura,
         periodoMes, modoErp,
+        perfilCliente: perfil,
       });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
@@ -206,6 +215,105 @@ export default function DespesasPage({ setProcessando }) {
             style={{ fontSize: 12, color: '#888', background: '#F5F5FA', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <RotateCcw size={12} /> Nova análise
           </button>
+        )}
+      </div>
+
+      {/* ── Painel Perfil do Cliente ── */}
+      <div style={{ marginBottom: 14 }}>
+        <button
+          onClick={() => setPainelPerfilAberto(v => !v)}
+          style={{ background: 'none', border: '1px solid #ddd', borderRadius: 7, padding: '6px 12px', fontSize: 12, color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          ⚙️ Perfil do cliente {painelPerfilAberto ? '▲' : '▼'}
+        </button>
+        {painelPerfilAberto && (
+          <div style={{ marginTop: 8, background: '#F7F7FB', border: '1px solid #eee', borderRadius: 8, padding: '14px 16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Cliente existente</label>
+                <select
+                  value={clienteSelecionado}
+                  onChange={async e => {
+                    const nome = e.target.value;
+                    setClienteSelecionado(nome);
+                    if (nome && nome !== '__novo__') {
+                      try {
+                        const p = await carregarPerfil(nome);
+                        setPerfil(p);
+                      } catch (_) {}
+                    } else if (nome === '__novo__') {
+                      setPerfil({ tolerancia_dias: 5, cenario_parcelamento: 'B' });
+                    }
+                  }}
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }}>
+                  <option value="">— Selecionar —</option>
+                  <option value="__novo__">— Novo cliente —</option>
+                  {clientes.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Nome do cliente</label>
+                <input
+                  value={perfil.nome_cliente || ''}
+                  onChange={e => setPerfil(p => ({ ...p, nome_cliente: e.target.value }))}
+                  placeholder="Ex: Empresa X"
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Cenário de parcelamento</label>
+                <select
+                  value={perfil.cenario_parcelamento || 'B'}
+                  onChange={e => setPerfil(p => ({ ...p, cenario_parcelamento: e.target.value }))}
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12 }}>
+                  <option value="A">A — ERP tem campo de parcela</option>
+                  <option value="B">B — ERP tem valor da competência</option>
+                  <option value="C">C — ERP lançou o total</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Tolerância de dias</label>
+                <input
+                  type="number" min={0} max={30}
+                  value={perfil.tolerancia_dias ?? 5}
+                  onChange={e => setPerfil(p => ({ ...p, tolerancia_dias: parseInt(e.target.value) || 0 }))}
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Coluna forma de pagamento no ERP</label>
+                <input
+                  value={perfil.campo_forma_pagamento || ''}
+                  onChange={e => setPerfil(p => ({ ...p, campo_forma_pagamento: e.target.value }))}
+                  placeholder="Ex: Forma de Pagamento"
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12, boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 3 }}>Valor que identifica cartão no ERP</label>
+                <input
+                  value={perfil.valor_forma_pagamento || ''}
+                  onChange={e => setPerfil(p => ({ ...p, valor_forma_pagamento: e.target.value }))}
+                  placeholder="Ex: CARTÃO CRÉDITO"
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #ddd', fontSize: 12, boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (!perfil.nome_cliente) { alert('Informe o nome do cliente antes de salvar.'); return; }
+                setSalvandoPerfil(true);
+                try {
+                  await salvarPerfil(perfil);
+                  const d = await listarPerfis();
+                  setClientes(d.perfis || []);
+                  setClienteSelecionado(perfil.nome_cliente);
+                } catch (e) {
+                  alert('Erro ao salvar perfil: ' + (e.message || ''));
+                } finally {
+                  setSalvandoPerfil(false);
+                }
+              }}
+              disabled={salvandoPerfil}
+              style={{ padding: '6px 16px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: salvandoPerfil ? 'not-allowed' : 'pointer', opacity: salvandoPerfil ? 0.7 : 1 }}>
+              {salvandoPerfil ? 'Salvando…' : '💾 Salvar perfil'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -375,6 +483,29 @@ export default function DespesasPage({ setProcessando }) {
           {r.total_encargos_pendentes > 0 && (
             <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#5A3200' }}>
               ⚠️ <strong>Encargos não lançados no ERP:</strong> R$ {r.total_encargos_pendentes?.toFixed(2)}
+            </div>
+          )}
+
+          {r.validacao_agrupamento && (
+            <div style={{
+              background: r.validacao_agrupamento.ok ? '#F0FBF6' : '#FCEBEB',
+              border: `1px solid ${r.validacao_agrupamento.ok ? '#A8D5BC' : '#F5C6C6'}`,
+              borderRadius: 8, padding: '12px 16px', marginBottom: 16
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: r.validacao_agrupamento.ok ? '#0F6E56' : '#A32D2D' }}>
+                {r.validacao_agrupamento.ok ? '✅ Agrupamento correto — pode realizar o pagamento' : '❌ Agrupamento com diferença — revisar lançamentos'}
+              </div>
+              <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+                Valor líquido da fatura: R$ {r.valor_liquido?.toFixed(2)}
+                {' | '}Total ERP agrupado: R$ {r.validacao_agrupamento.total_erp_agrupado?.toFixed(2)}
+                {!r.validacao_agrupamento.ok && ` | Diferença: R$ ${r.validacao_agrupamento.diferenca?.toFixed(2)}`}
+              </div>
+              {(r.total_pagamentos > 0 || r.total_antecipacoes > 0) && (
+                <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
+                  {r.total_pagamentos > 0 && `Pagamentos abatidos: R$ ${r.total_pagamentos?.toFixed(2)} `}
+                  {r.total_antecipacoes > 0 && `| Antecipações: R$ ${r.total_antecipacoes?.toFixed(2)}`}
+                </div>
+              )}
             </div>
           )}
 
