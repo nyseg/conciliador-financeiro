@@ -319,8 +319,18 @@ async def listar_perfis_clientes():
 async def registro(body: RegistroSchema):
     if not _DB_OK:
         raise HTTPException(status_code=503, detail="Banco de dados não configurado")
-    if len(body.senha) < 6:
-        raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+    import re as _re
+    erros_senha = []
+    if len(body.senha) < 8:
+        erros_senha.append("mínimo 8 caracteres")
+    if not _re.search(r'[A-Z]', body.senha):
+        erros_senha.append("pelo menos uma letra maiúscula")
+    if not _re.search(r'[0-9]', body.senha):
+        erros_senha.append("pelo menos um número")
+    if not _re.search(r'[!@#$%^&*()\-_=+\[\]{}|;:,.<>?/\\~`]', body.senha):
+        erros_senha.append("pelo menos um caractere especial (!@#$%...)")
+    if erros_senha:
+        raise HTTPException(status_code=400, detail="Senha inválida: " + ", ".join(erros_senha))
     from database import get_db as _get_db
     db = next(_get_db())
     try:
