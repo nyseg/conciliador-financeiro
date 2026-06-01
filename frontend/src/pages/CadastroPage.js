@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { registrar } from '../api';
+import { acordarServidor } from '../utils/servidor';
 
 const COR_PRIMARIA = '#1A1A2E';
 const COR_VERDE    = '#1D9E75';
@@ -42,12 +43,21 @@ export default function CadastroPage() {
   const [confirmar, setConfirmar] = useState('');
   const [erro, setErro]           = useState('');
   const [sucesso, setSucesso]     = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [loading, setLoading]         = useState(false);
   const [senhaFocada, setSenhaFocada] = useState(false);
+  const [acordando, setAcordando]     = useState(false);
+  const [tentativa, setTentativa]     = useState(0);
 
-  const senhaValida = REGRAS.every(r => r.test(senha));
+  // Pinga o servidor em background ao carregar a página
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/`, {
+      signal: AbortSignal.timeout(8000),
+    }).catch(() => {});
+  }, []);
+
+  const senhaValida  = REGRAS.every(r => r.test(senha));
   const senhasIguais = senha === confirmar && confirmar.length > 0;
-  const podeEnviar = nome && email && senhaValida && senhasIguais;
+  const podeEnviar   = nome && email && senhaValida && senhasIguais;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -65,13 +75,29 @@ export default function CadastroPage() {
     }
 
     setLoading(true);
+
+    // Acorda o servidor antes de enviar
+    setAcordando(true);
+    setTentativa(0);
+    const online = await acordarServidor((t) => setTentativa(t));
+    setAcordando(false);
+
+    if (!online) {
+      setErro('❌ Não foi possível conectar ao servidor. Verifique se o backend está no ar no Render.');
+      setLoading(false);
+      return;
+    }
+
     try {
       await registrar({ nome, email, senha });
       setSucesso('Conta criada com sucesso! Redirecionando...');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      const detail = err.response?.data?.detail || 'Erro ao criar conta. Verifique sua conexão e tente novamente.';
-      setErro(detail);
+      if (!err.response) {
+        setErro('🔌 Servidor não respondeu. Tente novamente em alguns segundos.');
+      } else {
+        setErro(err.response?.data?.detail || `Erro ${err.response.status} ao criar conta.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -187,6 +213,16 @@ export default function CadastroPage() {
             )}
           </div>
 
+          {/* Acordando servidor */}
+          {acordando && (
+            <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13, color: '#7A4500', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={estiloSpinner} />
+              ☕ Servidor acordando… tentativa {tentativa}/12
+            </div>
+          )}
+
           {/* Erro */}
           {erro && (
             <div style={{
@@ -210,18 +246,18 @@ export default function CadastroPage() {
           {/* Botão */}
           <button
             type="submit"
-            disabled={loading || !podeEnviar}
+            disabled={loading || acordando || !podeEnviar}
             title={!podeEnviar ? 'Preencha todos os campos e atenda aos requisitos de senha' : ''}
             style={{
               width: '100%',
-              background: (!podeEnviar || loading) ? '#9CA3AF' : COR_VERDE,
+              background: (!podeEnviar || loading || acordando) ? '#9CA3AF' : COR_VERDE,
               color: '#fff',
               border: 'none',
               borderRadius: 10,
               padding: '13px',
               fontSize: 15,
               fontWeight: 700,
-              cursor: (!podeEnviar || loading) ? 'not-allowed' : 'pointer',
+              cursor: (!podeEnviar || loading || acordando) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -229,9 +265,12 @@ export default function CadastroPage() {
               transition: 'background .15s',
             }}
           >
-            {loading ? (
-              <><span style={estiloSpinner} /> Criando conta...</>
-            ) : 'Criar conta'}
+            {acordando
+              ? <><span style={estiloSpinner} /> Aguardando servidor…</>
+              : loading
+              ? <><span style={estiloSpinner} /> Criando conta...</>
+              : 'Criar conta'
+            }
           </button>
         </form>
 
