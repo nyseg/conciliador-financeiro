@@ -23,7 +23,7 @@ const CAMPOS_BANCO = [
   { key: 'valor',    label: 'Coluna de Crédito / Valor' },
 ];
 
-export default function ReceitasPage({ setProcessando }) {
+export default function ReceitasPage({ setProcessando, clienteId }) {
   const [operadora, setOperadora]         = useState(null);
   const [erp, setErp]                     = useState(null);
   const [banco, setBanco]                 = useState(null);
@@ -84,7 +84,7 @@ export default function ReceitasPage({ setProcessando }) {
 
     setLoading(true);
     try {
-      const res = await conciliarReceitas({ operadora, erp, banco, mapeamentoErp, mapeamentoBanco, periodoMes });
+      const res = await conciliarReceitas({ operadora, erp, banco, mapeamentoErp, mapeamentoBanco, periodoMes, clienteId: clienteId || '' });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}
       salvarHistorico({

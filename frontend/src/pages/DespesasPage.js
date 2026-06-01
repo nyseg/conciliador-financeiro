@@ -34,7 +34,7 @@ const MODOS_ERP = [
   { value: 'misto',     label: 'Misto',          desc: 'Tenta por transação primeiro, depois por categoria' },
 ];
 
-export default function DespesasPage({ setProcessando }) {
+export default function DespesasPage({ setProcessando, clienteId }) {
   const [fatura, setFatura]               = useState(null);
   const [erp, setErp]                     = useState(null);
   const [periodoMes, setPeriodoMes]       = useState('');
@@ -137,6 +137,7 @@ export default function DespesasPage({ setProcessando }) {
         mapeamentoFatura: faturaEhPdfImagem ? {} : mapeamentoFatura,
         periodoMes, modoErp,
         perfilCliente: perfil,
+        clienteId: clienteId || '',
       });
       setResultado(res);
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(res)); } catch (_) {}

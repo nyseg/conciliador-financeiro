@@ -1,19 +1,40 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import OAuth2PasswordBearer
+from typing import Optional
 import uvicorn
 import io
 import json
 import os
+import uuid as _uuid
+from pydantic import BaseModel
+
 from parser_arquivos import parsear_fatura_cartao, parsear_erp
 from conciliacao import conciliar
 from exportar import gerar_excel
 
-# Diretório para perfis de clientes
+# ---------------------------------------------------------------------------
+# Banco de dados — opcional, só carrega se DATABASE_URL estiver configurado
+# ---------------------------------------------------------------------------
+try:
+    from database import engine, Base, get_db
+    from models import Analista, Cliente, PerfilConfiguracao, Conciliacao, Arquivo
+    from auth import hash_senha, verificar_senha, criar_token, get_analista_atual
+    _DB_OK = True
+except Exception:
+    _DB_OK = False
+
+# ---------------------------------------------------------------------------
+# Diretório para perfis de clientes (legado — mantido para compatibilidade)
+# ---------------------------------------------------------------------------
 _PERFIS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'perfis_clientes')
 os.makedirs(_PERFIS_DIR, exist_ok=True)
 
-app = FastAPI(title="Conciliador Financeiro API", version="1.0.0")
+# ---------------------------------------------------------------------------
+# Aplicação
+# ---------------------------------------------------------------------------
+app = FastAPI(title="Conciliador Financeiro API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,25 +43,122 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Criar tabelas na inicialização (se DB configurado)
+if _DB_OK and engine is not None:
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as _e:
+        print(f"[WARN] Não foi possível criar tabelas: {_e}")
+
+# ---------------------------------------------------------------------------
+# OAuth2 opcional (auto_error=False não quebra quando não há token)
+# ---------------------------------------------------------------------------
+_oauth2_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+# ---------------------------------------------------------------------------
+# Schemas Pydantic
+# ---------------------------------------------------------------------------
+class RegistroSchema(BaseModel):
+    nome: str
+    email: str
+    senha: str
+
+class LoginSchema(BaseModel):
+    email: str
+    senha: str
+
+class ClienteSchema(BaseModel):
+    razao_social: str
+    cnpj: str = ""
+    nome_fantasia: str = ""
+    erp_utilizado: str = ""
+
+class PerfilSchema(BaseModel):
+    cenario_parcelamento: str = "B"
+    campo_numero_fatura: str = ""
+    campo_forma_pagamento: str = ""
+    valor_forma_pagamento: str = ""
+    tolerancia_dias: int = 5
+    campo_parcelas_erp: str = ""
+    mapeamento_colunas: dict = {}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _serial(obj):
+    """Serializa ORM → dict simples."""
+    if obj is None:
+        return None
+    from decimal import Decimal
+    import datetime as _dt
+    d = {}
+    for c in obj.__table__.columns:
+        v = getattr(obj, c.name)
+        if isinstance(v, _dt.datetime):
+            v = v.isoformat()
+        elif isinstance(v, Decimal):
+            v = float(v)
+        d[c.name] = v
+    return d
+
+
+def _upload_cloudinary(conteudo: bytes, nome: str, pasta: str = "conciliador") -> str:
+    """Faz upload para Cloudinary e retorna a URL segura. Retorna '' em caso de erro."""
+    try:
+        import cloudinary
+        import cloudinary.uploader
+        cloudinary.config(
+            cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+            api_key=os.environ.get("CLOUDINARY_API_KEY"),
+            api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+        )
+        resultado = cloudinary.uploader.upload(
+            conteudo,
+            folder=pasta,
+            public_id=f"{pasta}/{nome}_{_uuid.uuid4().hex[:8]}",
+            resource_type="raw",
+        )
+        return resultado.get("secure_url", "")
+    except Exception:
+        return ""
+
+
+def _get_analista_from_token(token: Optional[str], db) -> Optional[object]:
+    """Tenta decodificar token e retornar analista. Retorna None em caso de erro."""
+    if not token or not _DB_OK:
+        return None
+    try:
+        from jose import jwt as _jwt, JWTError
+        SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production")
+        payload = _jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        aid = payload.get("sub")
+        if not aid:
+            return None
+        return db.query(Analista).filter(Analista.id == aid).first()
+    except Exception:
+        return None
+
+
+# ===========================================================================
+# HEALTH
+# ===========================================================================
 @app.get("/")
 def health():
     return {"status": "ok", "app": "Conciliador Financeiro"}
 
 
+# ===========================================================================
+# DIAGNÓSTICO OCR
+# ===========================================================================
 @app.get("/api/status-ocr")
 def status_ocr():
-    """
-    Diagnóstico: verifica se Tesseract, PyMuPDF e Pillow estão instalados.
-    Acesse em: GET /api/status-ocr
-    """
+    """Diagnóstico: verifica se Tesseract, PyMuPDF e Pillow estão instalados."""
     import shutil
     resultado = {}
 
-    # Tesseract binário
     tess_path = shutil.which("tesseract")
     resultado["tesseract_path"] = tess_path
 
-    # pytesseract
     try:
         import pytesseract
         versao = str(pytesseract.get_tesseract_version())
@@ -49,14 +167,12 @@ def status_ocr():
     except Exception as e:
         resultado["tesseract"] = {"instalado": False, "erro": str(e)}
 
-    # PyMuPDF (fitz)
     try:
         import fitz
         resultado["pymupdf"] = {"instalado": True, "versao": fitz.version[0]}
     except Exception as e:
         resultado["pymupdf"] = {"instalado": False, "erro": str(e)}
 
-    # Pillow
     try:
         from PIL import Image
         import PIL
@@ -69,15 +185,11 @@ def status_ocr():
 
 @app.post("/api/diagnostico-pdf")
 async def diagnostico_pdf(arquivo: UploadFile = File(...)):
-    """
-    Diagnóstico: extrai texto bruto do PDF (todas as camadas) sem conciliar.
-    Retorna o que cada camada conseguiu ler — útil para debugar PDFs imagem.
-    """
+    """Diagnóstico: extrai texto bruto do PDF sem conciliar."""
     conteudo = await arquivo.read()
     nome     = arquivo.filename or "fatura.pdf"
     resultado = {"arquivo": nome, "camadas": {}}
 
-    # Camada 1: pdfplumber tabelas
     try:
         import pdfplumber, io as _io
         with pdfplumber.open(_io.BytesIO(conteudo)) as pdf:
@@ -92,7 +204,6 @@ async def diagnostico_pdf(arquivo: UploadFile = File(...)):
     except Exception as e:
         resultado["camadas"]["pdfplumber_tabelas"] = {"erro": str(e)}
 
-    # Camada 2: pdfplumber texto
     try:
         import pdfplumber, io as _io
         with pdfplumber.open(_io.BytesIO(conteudo)) as pdf:
@@ -106,7 +217,6 @@ async def diagnostico_pdf(arquivo: UploadFile = File(...)):
     except Exception as e:
         resultado["camadas"]["pdfplumber_texto"] = {"erro": str(e)}
 
-    # Camada 3: PyMuPDF texto
     try:
         import fitz, io as _io
         doc = fitz.open(stream=conteudo, filetype="pdf")
@@ -121,7 +231,6 @@ async def diagnostico_pdf(arquivo: UploadFile = File(...)):
     except Exception as e:
         resultado["camadas"]["pymupdf_texto"] = {"erro": str(e)}
 
-    # Camada 4: OCR (se Tesseract instalado)
     try:
         import fitz, io as _io
         import pytesseract
@@ -129,9 +238,9 @@ async def diagnostico_pdf(arquivo: UploadFile = File(...)):
         doc = fitz.open(stream=conteudo, filetype="pdf")
         linhas_ocr = []
         for i, pg in enumerate(doc):
-            if i > 1:  # só primeiras 2 páginas para diagnóstico rápido
+            if i > 1:
                 break
-            mat = fitz.Matrix(2, 2)   # 144 DPI — mais rápido para diagnóstico
+            mat = fitz.Matrix(2, 2)
             pix = pg.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
             img = PILImage.frombytes("RGB", (pix.width, pix.height), pix.samples).convert("L")
             texto = pytesseract.image_to_string(img, lang="por+eng", config="--psm 6")
@@ -145,12 +254,15 @@ async def diagnostico_pdf(arquivo: UploadFile = File(...)):
 
     return resultado
 
+
+# ===========================================================================
+# PREVIEW COLUNAS
+# ===========================================================================
 @app.post("/api/preview-colunas")
 async def preview_colunas(
     arquivo: UploadFile = File(...),
-    tipo: str = Form(...)  # "erp_pagar" | "erp_receber" | "banco"
+    tipo: str = Form(...)
 ):
-    """Retorna as colunas detectadas no arquivo para mapeamento."""
     conteudo = await arquivo.read()
     nome = arquivo.filename or ""
     try:
@@ -160,9 +272,12 @@ async def preview_colunas(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# ===========================================================================
+# PERFIS DE CLIENTES — legado (mantido)
+# ===========================================================================
 @app.post("/api/perfil-cliente")
 async def salvar_perfil_cliente(perfil: dict):
-    """Salva perfil de configuração de um cliente em backend/perfis_clientes/{nome}.json"""
     nome = str(perfil.get('nome_cliente', '')).strip()
     if not nome:
         raise HTTPException(status_code=400, detail="nome_cliente é obrigatório")
@@ -177,7 +292,6 @@ async def salvar_perfil_cliente(perfil: dict):
 
 @app.get("/api/perfil-cliente/{nome}")
 async def carregar_perfil_cliente(nome: str):
-    """Carrega perfil de um cliente pelo nome."""
     caminho = os.path.join(_PERFIS_DIR, f"{nome}.json")
     if not os.path.exists(caminho):
         raise HTTPException(status_code=404, detail=f"Perfil '{nome}' não encontrado")
@@ -190,28 +304,301 @@ async def carregar_perfil_cliente(nome: str):
 
 @app.get("/api/perfis-clientes")
 async def listar_perfis_clientes():
-    """Lista todos os perfis de clientes salvos."""
     try:
-        nomes = [
-            f[:-5]  # remove .json
-            for f in os.listdir(_PERFIS_DIR)
-            if f.endswith('.json')
-        ]
+        nomes = [f[:-5] for f in os.listdir(_PERFIS_DIR) if f.endswith('.json')]
         nomes.sort()
         return {"perfis": nomes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===========================================================================
+# AUTENTICAÇÃO JWT
+# ===========================================================================
+@app.post("/api/auth/registro")
+async def registro(body: RegistroSchema):
+    if not _DB_OK:
+        raise HTTPException(status_code=503, detail="Banco de dados não configurado")
+    if len(body.senha) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter no mínimo 6 caracteres")
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        existente = db.query(Analista).filter(Analista.email == body.email).first()
+        if existente:
+            raise HTTPException(status_code=409, detail="E-mail já cadastrado")
+        analista = Analista(
+            id=str(_uuid.uuid4()),
+            nome=body.nome,
+            email=body.email,
+            senha_hash=hash_senha(body.senha),
+        )
+        db.add(analista)
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+
+@app.post("/api/auth/login")
+async def login(body: LoginSchema):
+    if not _DB_OK:
+        raise HTTPException(status_code=503, detail="Banco de dados não configurado")
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        analista = db.query(Analista).filter(Analista.email == body.email).first()
+        if not analista or not verificar_senha(body.senha, analista.senha_hash):
+            raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+        token = criar_token(str(analista.id))
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "analista": {"id": str(analista.id), "nome": analista.nome, "email": analista.email},
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/auth/me")
+async def me(analista: Analista = Depends(get_analista_atual)):
+    return {"id": str(analista.id), "nome": analista.nome, "email": analista.email}
+
+
+# ===========================================================================
+# CRUD CLIENTES
+# ===========================================================================
+@app.get("/api/clientes")
+async def listar_clientes(analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        clientes = db.query(Cliente).filter(Cliente.analista_id == str(analista.id)).all()
+        resultado = []
+        for c in clientes:
+            ultima = (
+                db.query(Conciliacao)
+                .filter(Conciliacao.cliente_id == str(c.id))
+                .order_by(Conciliacao.criado_em.desc())
+                .first()
+            )
+            d = _serial(c)
+            d["ultima_conciliacao"] = None
+            if ultima:
+                d["ultima_conciliacao"] = {
+                    "data": ultima.criado_em.isoformat() if ultima.criado_em else None,
+                    "tipo": ultima.tipo,
+                    "periodo": ultima.periodo,
+                    "conciliados": ultima.conciliados,
+                    "pendentes": ultima.pendentes,
+                    "total_fatura": float(ultima.total_fatura or 0),
+                }
+            resultado.append(d)
+        return resultado
+    finally:
+        db.close()
+
+
+@app.post("/api/clientes")
+async def criar_cliente(body: ClienteSchema, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = Cliente(
+            id=str(_uuid.uuid4()),
+            analista_id=str(analista.id),
+            razao_social=body.razao_social,
+            cnpj=body.cnpj,
+            nome_fantasia=body.nome_fantasia,
+            erp_utilizado=body.erp_utilizado,
+        )
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return _serial(c)
+    finally:
+        db.close()
+
+
+@app.get("/api/clientes/{cliente_id}")
+async def detalhe_cliente(cliente_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        return _serial(c)
+    finally:
+        db.close()
+
+
+@app.put("/api/clientes/{cliente_id}")
+async def atualizar_cliente(cliente_id: str, body: ClienteSchema, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        c.razao_social  = body.razao_social
+        c.cnpj          = body.cnpj
+        c.nome_fantasia = body.nome_fantasia
+        c.erp_utilizado = body.erp_utilizado
+        db.commit()
+        db.refresh(c)
+        return _serial(c)
+    finally:
+        db.close()
+
+
+@app.delete("/api/clientes/{cliente_id}")
+async def deletar_cliente(cliente_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        db.delete(c)
+        db.commit()
+        return {"ok": True}
+    finally:
+        db.close()
+
+
+# ===========================================================================
+# PERFIL DE CONFIGURAÇÃO POR CLIENTE
+# ===========================================================================
+@app.get("/api/clientes/{cliente_id}/perfil")
+async def get_perfil(cliente_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        perfil = db.query(PerfilConfiguracao).filter(PerfilConfiguracao.cliente_id == cliente_id).first()
+        if not perfil:
+            perfil = PerfilConfiguracao(id=str(_uuid.uuid4()), cliente_id=cliente_id)
+            db.add(perfil)
+            db.commit()
+            db.refresh(perfil)
+        return _serial(perfil)
+    finally:
+        db.close()
+
+
+@app.put("/api/clientes/{cliente_id}/perfil")
+async def upsert_perfil(cliente_id: str, body: PerfilSchema, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        perfil = db.query(PerfilConfiguracao).filter(PerfilConfiguracao.cliente_id == cliente_id).first()
+        if not perfil:
+            perfil = PerfilConfiguracao(id=str(_uuid.uuid4()), cliente_id=cliente_id)
+            db.add(perfil)
+        perfil.cenario_parcelamento  = body.cenario_parcelamento
+        perfil.campo_numero_fatura   = body.campo_numero_fatura
+        perfil.campo_forma_pagamento = body.campo_forma_pagamento
+        perfil.valor_forma_pagamento = body.valor_forma_pagamento
+        perfil.tolerancia_dias       = body.tolerancia_dias
+        perfil.campo_parcelas_erp    = body.campo_parcelas_erp
+        perfil.mapeamento_colunas    = body.mapeamento_colunas
+        db.commit()
+        db.refresh(perfil)
+        return _serial(perfil)
+    finally:
+        db.close()
+
+
+# ===========================================================================
+# HISTÓRICO DE CONCILIAÇÕES
+# ===========================================================================
+@app.get("/api/clientes/{cliente_id}/conciliacoes")
+async def listar_conciliacoes(cliente_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        c = db.query(Cliente).filter(Cliente.id == cliente_id, Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        conciliacoes = (
+            db.query(Conciliacao)
+            .filter(Conciliacao.cliente_id == cliente_id)
+            .order_by(Conciliacao.criado_em.desc())
+            .all()
+        )
+        lista = []
+        for conc in conciliacoes:
+            d = _serial(conc)
+            d.pop("resultado_json", None)  # não retornar JSON pesado na lista
+            lista.append(d)
+        return lista
+    finally:
+        db.close()
+
+
+@app.get("/api/conciliacoes/{conc_id}")
+async def detalhar_conciliacao(conc_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        conc = db.query(Conciliacao).filter(Conciliacao.id == conc_id).first()
+        if not conc:
+            raise HTTPException(status_code=404, detail="Conciliação não encontrada")
+        # verifica posse via cliente
+        c = db.query(Cliente).filter(Cliente.id == str(conc.cliente_id), Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=403, detail="Acesso negado")
+        d = _serial(conc)
+        # resultado_json já vem como dict pelo JSONB
+        d["resultado_json"] = conc.resultado_json
+        return d
+    finally:
+        db.close()
+
+
+@app.post("/api/conciliacoes/{conc_id}/exportar")
+async def reexportar_conciliacao(conc_id: str, analista: Analista = Depends(get_analista_atual)):
+    from database import get_db as _get_db
+    db = next(_get_db())
+    try:
+        conc = db.query(Conciliacao).filter(Conciliacao.id == conc_id).first()
+        if not conc:
+            raise HTTPException(status_code=404, detail="Conciliação não encontrada")
+        c = db.query(Cliente).filter(Cliente.id == str(conc.cliente_id), Cliente.analista_id == str(analista.id)).first()
+        if not c:
+            raise HTTPException(status_code=403, detail="Acesso negado")
+        payload = conc.resultado_json or {}
+        excel_bytes = gerar_excel(payload)
+        nome_cliente = (c.nome_fantasia or c.razao_social).replace(" ", "_")
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="conciliacao_{nome_cliente}_{conc.periodo}.xlsx"'},
+        )
+    finally:
+        db.close()
+
+
+# ===========================================================================
+# CONCILIAR DESPESAS
+# ===========================================================================
 @app.post("/api/conciliar-despesas")
 async def conciliar_despesas(
     fatura: UploadFile = File(...),
     erp: UploadFile = File(...),
-    mapeamento: str = Form("{}"),          # JSON mapeamento colunas ERP
-    mapeamento_fatura: str = Form("{}"),   # JSON mapeamento colunas fatura
-    periodo_mes: str = Form(""),           # ex: "2026-03"
-    modo_erp: str = Form("transacao"),     # "transacao" | "categoria" | "misto"
-    perfil_cliente: str = Form("{}"),      # JSON com perfil do cliente
+    mapeamento: str = Form("{}"),
+    mapeamento_fatura: str = Form("{}"),
+    periodo_mes: str = Form(""),
+    modo_erp: str = Form("transacao"),
+    perfil_cliente: str = Form("{}"),
+    cliente_id: str = Form(""),
+    token: Optional[str] = Depends(_oauth2_optional),
 ):
     """Concilia fatura do cartão corporativo com ERP contas a pagar."""
     try:
@@ -221,17 +608,64 @@ async def conciliar_despesas(
         mapa_fatura  = json.loads(mapeamento_fatura)
         perfil       = json.loads(perfil_cliente) if perfil_cliente else {}
 
-        df_fatura = parsear_fatura_cartao(fatura_bytes, fatura.filename or "",
-                                          mapeamento=mapa_fatura or None)
+        df_fatura = parsear_fatura_cartao(fatura_bytes, fatura.filename or "", mapeamento=mapa_fatura or None)
         df_erp    = parsear_erp(erp_bytes, erp.filename or "", mapa)
 
-        resultado = conciliar(df_fatura, df_erp, periodo_mes, modo="despesas",
-                              modo_erp=modo_erp, perfil=perfil)
+        resultado = conciliar(df_fatura, df_erp, periodo_mes, modo="despesas", modo_erp=modo_erp, perfil=perfil)
+
+        # Salvar no banco se cliente_id fornecido e banco configurado
+        if cliente_id and _DB_OK and engine is not None:
+            try:
+                from database import get_db as _get_db
+                db = next(_get_db())
+                analista = _get_analista_from_token(token, db)
+                if analista:
+                    conc = Conciliacao(
+                        id=str(_uuid.uuid4()),
+                        cliente_id=cliente_id,
+                        analista_id=str(analista.id),
+                        tipo="despesas",
+                        periodo=periodo_mes or "",
+                        status="concluida",
+                        total_itens=resultado.get("total_itens", 0),
+                        conciliados=resultado.get("conciliados", 0),
+                        pendentes=resultado.get("pendentes", 0),
+                        total_fatura=float(resultado.get("total_fatura", 0) or 0),
+                        total_erp=float(resultado.get("total_erp", 0) or 0),
+                        diferenca=float(resultado.get("diferenca", 0) or 0),
+                        resultado_json=resultado,
+                    )
+                    db.add(conc)
+                    db.flush()
+
+                    # Upload Cloudinary (se configurado)
+                    if os.environ.get("CLOUDINARY_CLOUD_NAME"):
+                        url_fatura = _upload_cloudinary(fatura_bytes, fatura.filename or "fatura", "conciliador/faturas")
+                        url_erp    = _upload_cloudinary(erp_bytes, erp.filename or "erp", "conciliador/erp")
+                    else:
+                        url_fatura = url_erp = ""
+
+                    db.add(Arquivo(id=str(_uuid.uuid4()), conciliacao_id=str(conc.id), tipo="fatura",
+                                   nome_original=fatura.filename or "", url_storage=url_fatura))
+                    db.add(Arquivo(id=str(_uuid.uuid4()), conciliacao_id=str(conc.id), tipo="erp",
+                                   nome_original=erp.filename or "", url_storage=url_erp))
+                    db.commit()
+                    resultado["conciliacao_id"] = str(conc.id)
+                db.close()
+            except Exception as _e:
+                print(f"[WARN] Falha ao salvar conciliação: {_e}")
+
         return resultado
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# ===========================================================================
+# CONCILIAR RECEITAS
+# ===========================================================================
 @app.post("/api/conciliar-receitas")
 async def conciliar_receitas(
     operadora: UploadFile = File(...),
@@ -240,72 +674,115 @@ async def conciliar_receitas(
     mapeamento_erp: str = Form("{}"),
     mapeamento_banco: str = Form("{}"),
     periodo_mes: str = Form(""),
+    cliente_id: str = Form(""),
+    token: Optional[str] = Depends(_oauth2_optional),
 ):
     """Concilia extrato da operadora com ERP contas a receber e extrato bancário."""
     try:
-        op_bytes = await operadora.read()
-        erp_bytes = await erp.read()
+        op_bytes    = await operadora.read()
+        erp_bytes   = await erp.read()
         banco_bytes = await banco.read()
-        mapa_erp = json.loads(mapeamento_erp)
-        mapa_banco = json.loads(mapeamento_banco)
+        mapa_erp    = json.loads(mapeamento_erp)
+        mapa_banco  = json.loads(mapeamento_banco)
 
         from parser_arquivos import parsear_operadora, parsear_banco
-        df_op = parsear_operadora(op_bytes, operadora.filename or "")
-        df_erp = parsear_erp(erp_bytes, erp.filename or "", mapa_erp)
+        df_op    = parsear_operadora(op_bytes, operadora.filename or "")
+        df_erp   = parsear_erp(erp_bytes, erp.filename or "", mapa_erp)
         df_banco = parsear_banco(banco_bytes, banco.filename or "", mapa_banco)
 
         resultado = conciliar(df_op, df_erp, periodo_mes, modo="receitas", df_banco=df_banco)
+
+        # Salvar no banco se cliente_id fornecido e banco configurado
+        if cliente_id and _DB_OK and engine is not None:
+            try:
+                from database import get_db as _get_db
+                db = next(_get_db())
+                analista = _get_analista_from_token(token, db)
+                if analista:
+                    conc = Conciliacao(
+                        id=str(_uuid.uuid4()),
+                        cliente_id=cliente_id,
+                        analista_id=str(analista.id),
+                        tipo="receitas",
+                        periodo=periodo_mes or "",
+                        status="concluida",
+                        total_itens=resultado.get("total_itens", 0),
+                        conciliados=resultado.get("conciliados", 0),
+                        pendentes=resultado.get("pendentes", 0),
+                        total_fatura=float(resultado.get("total_fatura", 0) or 0),
+                        total_erp=float(resultado.get("total_erp", 0) or 0),
+                        diferenca=float(resultado.get("diferenca", 0) or 0),
+                        resultado_json=resultado,
+                    )
+                    db.add(conc)
+                    db.flush()
+
+                    if os.environ.get("CLOUDINARY_CLOUD_NAME"):
+                        url_op    = _upload_cloudinary(op_bytes, operadora.filename or "operadora", "conciliador/operadoras")
+                        url_erp_f = _upload_cloudinary(erp_bytes, erp.filename or "erp", "conciliador/erp")
+                        url_banco = _upload_cloudinary(banco_bytes, banco.filename or "banco", "conciliador/banco")
+                    else:
+                        url_op = url_erp_f = url_banco = ""
+
+                    db.add(Arquivo(id=str(_uuid.uuid4()), conciliacao_id=str(conc.id), tipo="operadora",
+                                   nome_original=operadora.filename or "", url_storage=url_op))
+                    db.add(Arquivo(id=str(_uuid.uuid4()), conciliacao_id=str(conc.id), tipo="erp",
+                                   nome_original=erp.filename or "", url_storage=url_erp_f))
+                    db.add(Arquivo(id=str(_uuid.uuid4()), conciliacao_id=str(conc.id), tipo="banco",
+                                   nome_original=banco.filename or "", url_storage=url_banco))
+                    db.commit()
+                    resultado["conciliacao_id"] = str(conc.id)
+                db.close()
+            except Exception as _e:
+                print(f"[WARN] Falha ao salvar conciliação: {_e}")
+
         return resultado
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# ===========================================================================
+# PDF → EXCEL
+# ===========================================================================
 @app.post("/api/pdf-para-excel")
-async def pdf_para_excel(
-    arquivo: UploadFile = File(...),
-):
-    """
-    Extrai transações de um PDF de fatura (via pdfplumber ou OCR Tesseract)
-    e retorna um arquivo Excel com as colunas: data, descricao, valor, cartao, tipo.
-    Útil para inspecionar a extração ou reusar o Excel no mapeamento manual.
-    """
+async def pdf_para_excel(arquivo: UploadFile = File(...)):
     try:
         conteudo = await arquivo.read()
         nome = arquivo.filename or "fatura.pdf"
-
         df = parsear_fatura_cartao(conteudo, nome)
-
         if df.empty:
             raise ValueError("Nenhuma transação encontrada no PDF.")
-
         buf = io.BytesIO()
         df.to_excel(buf, index=False, engine="openpyxl")
         buf.seek(0)
-
         nome_base = nome.rsplit(".", 1)[0]
         return StreamingResponse(
             buf,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": f'attachment; filename="{nome_base}_extraido.xlsx"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="{nome_base}_extraido.xlsx"'},
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# ===========================================================================
+# EXPORTAR RELATÓRIO
+# ===========================================================================
 @app.post("/api/exportar")
 async def exportar_relatorio(payload: dict):
-    """Gera e retorna arquivo Excel com o resultado da conciliação."""
     try:
         excel_bytes = gerar_excel(payload)
         return StreamingResponse(
             io.BytesIO(excel_bytes),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": "attachment; filename=conciliacao.xlsx"}
+            headers={"Content-Disposition": "attachment; filename=conciliacao.xlsx"},
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
