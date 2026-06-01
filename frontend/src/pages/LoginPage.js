@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { login as apiLogin } from '../api';
+import { apiComRetry } from '../utils/apiComRetry';
 
 const COR_PRIMARIA = '#1A1A2E';
 const COR_VERDE    = '#1D9E75';
@@ -13,26 +14,34 @@ export default function LoginPage() {
   const [email, setEmail]     = useState('');
   const [senha, setSenha]     = useState('');
   const [erro, setErro]       = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]               = useState(false);
+  const [tentativaRetry, setTentativaRetry] = useState(0);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setErro('');
+    setTentativaRetry(0);
     setLoading(true);
     try {
-      const res = await apiLogin({ email, senha });
+      const res = await apiComRetry(
+        () => apiLogin({ email, senha }),
+        (tent) => setTentativaRetry(tent),
+      );
       login(res.access_token, res.analista);
       navigate('/clientes', { replace: true });
     } catch (err) {
-      if (!err.response) {
-        setErro('🔌 Servidor não respondeu. O servidor pode estar acordando — aguarde 30 segundos e tente novamente.');
+      if (err.ehTimeoutServidor) {
+        setErro('⏱ Servidor demorou para responder. Clique em "Entrar" novamente — agora será imediato.');
       } else {
-        setErro(err.response?.data?.detail || `Erro ${err.response.status} ao fazer login.`);
+        setErro(err.response?.data?.detail || err.message || 'Erro ao fazer login.');
       }
     } finally {
       setLoading(false);
+      setTentativaRetry(0);
     }
   }
+
+  const retryAtivo = loading && tentativaRetry > 0;
 
   return (
     <div style={{
@@ -72,6 +81,15 @@ export default function LoginPage() {
               required placeholder="••••••" style={estiloInput} />
           </div>
 
+          {retryAtivo && (
+            <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13, color: '#7A4500', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={estiloSpinner} />
+              ☕ Servidor iniciando… nova tentativa {tentativaRetry}/3
+            </div>
+          )}
+
           {erro && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626',
               borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
@@ -85,7 +103,9 @@ export default function LoginPage() {
             fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
-            {loading ? <><span style={estiloSpinner} /> Entrando...</> : 'Entrar'}
+            {loading
+              ? <><span style={estiloSpinner} /> {retryAtivo ? 'Reconectando…' : 'Entrando…'}</>
+              : 'Entrar'}
           </button>
         </form>
 
