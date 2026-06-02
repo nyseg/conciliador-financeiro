@@ -1,6 +1,4 @@
 import os
-import hashlib
-import base64
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -14,26 +12,18 @@ SECRET_KEY   = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production
 ALGORITHM    = "HS256"
 EXPIRE_HOURS = 8
 
-pwd_context   = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pbkdf2_sha256: sem limite de tamanho de senha, nativo do Python (hashlib),
+# usado pelo Django por padrão — não depende do pacote bcrypt externo.
+pwd_context   = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-def _preparar_senha(senha: str) -> str:
-    """
-    Pré-hash com SHA-256 antes do bcrypt.
-    O bcrypt tem limite de 72 bytes — senhas maiores seriam silenciosamente truncadas.
-    SHA-256 converte a senha em 44 bytes base64, dentro do limite, sem perder segurança.
-    """
-    digest = hashlib.sha256(senha.encode("utf-8")).digest()
-    return base64.b64encode(digest).decode("utf-8")
-
-
 def hash_senha(senha: str) -> str:
-    return pwd_context.hash(_preparar_senha(senha))
+    return pwd_context.hash(senha)
 
 
 def verificar_senha(senha: str, h: str) -> bool:
-    return pwd_context.verify(_preparar_senha(senha), h)
+    return pwd_context.verify(senha, h)
 
 
 def criar_token(analista_id: str) -> str:
