@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 
-const COR_PRIMARIA = '#1A1A2E';
-const COR_VERDE    = '#1D9E75';
-
 // ── Formata e valida CNPJ ────────────────────────────────────────────────────
 
 function formatarCnpj(valor) {
@@ -55,9 +52,8 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
   const [loading, setLoading]            = useState(false);
   const [erro, setErro]                  = useState('');
 
-  // Estados da busca de CNPJ
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
-  const [cnpjStatus, setCnpjStatus]     = useState(null); // null | 'ok' | 'erro' | 'invalido'
+  const [cnpjStatus, setCnpjStatus]     = useState(null);
   const [cnpjMsg, setCnpjMsg]           = useState('');
 
   useEffect(() => {
@@ -79,7 +75,6 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
 
   if (!aberto) return null;
 
-  // Dispara busca quando CNPJ fica completo
   async function handleCnpjChange(valor) {
     const formatado = formatarCnpj(valor);
     setCnpj(formatado);
@@ -95,22 +90,18 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
       return;
     }
 
-    // CNPJ completo e válido → busca automática
     setBuscandoCnpj(true);
     setCnpjMsg('Consultando Receita Federal...');
     try {
       const dados = await buscarCnpj(formatado);
-
-      const razao  = dados.razao_social || '';
+      const razao    = dados.razao_social || '';
       const fantasia = dados.nome_fantasia || dados.razao_social || '';
-
       setRazaoSocial(razao);
       setNomeFantasia(fantasia !== razao ? fantasia : '');
-
       const situacao = dados.descricao_situacao_cadastral || '';
       if (situacao && situacao.toUpperCase() !== 'ATIVA') {
         setCnpjStatus('erro');
-        setCnpjMsg(`⚠️ Situação na Receita: ${situacao}. Verifique antes de prosseguir.`);
+        setCnpjMsg(`Situação na Receita: ${situacao}. Verifique antes de prosseguir.`);
       } else {
         setCnpjStatus('ok');
         setCnpjMsg(`✓ ${razao}`);
@@ -139,133 +130,119 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
     }
   }
 
-  const corBordaCnpj = cnpjStatus === 'ok'      ? COR_VERDE
-                     : cnpjStatus === 'erro'     ? '#F59E0B'
-                     : cnpjStatus === 'invalido' ? '#EF4444'
-                     : '#D1D5DB';
+  const corBordaCnpj = cnpjStatus === 'ok'      ? '#059669'
+                     : cnpjStatus === 'erro'     ? '#D97706'
+                     : cnpjStatus === 'invalido' ? '#DC2626'
+                     : '#E2E8F0';
+
+  const corMsgCnpj = cnpjStatus === 'ok'      ? '#059669'
+                   : cnpjStatus === 'invalido' ? '#DC2626'
+                   : '#D97706';
 
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, padding: 24,
-      }}
+      style={s.overlay}
       onClick={e => { if (e.target === e.currentTarget) onFechar(); }}
     >
-      <div style={{
-        background: '#fff', borderRadius: 16, padding: '32px 36px',
-        width: '100%', maxWidth: 480,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
-      }}>
-        <h3 style={{ margin: '0 0 24px', fontSize: 18, fontWeight: 700, color: COR_PRIMARIA }}>
-          {clienteInicial ? 'Editar Cliente' : 'Novo Cliente'}
-        </h3>
+      <div style={s.modal}>
+        {/* Header */}
+        <div style={s.modalHeader}>
+          <h3 style={s.modalTitle}>
+            {clienteInicial ? 'Editar Cliente' : 'Novo Cliente'}
+          </h3>
+          <button onClick={onFechar} style={s.modalClose}>&times;</button>
+        </div>
 
-        <form onSubmit={handleSalvar}>
+        {/* Body */}
+        <div style={s.modalBody}>
+          <form onSubmit={handleSalvar}>
 
-          {/* ── CNPJ com busca automática ── */}
-          <div style={{ marginBottom: 14 }}>
-            <label style={estiloLabel}>
-              CNPJ
-              <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: 11, marginLeft: 6 }}>
-                (preenchimento automático)
-              </span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                value={cnpj}
-                onChange={e => handleCnpjChange(e.target.value)}
-                placeholder="00.000.000/0001-00"
-                maxLength={18}
-                style={{
-                  ...estiloInput,
-                  borderColor: corBordaCnpj,
-                  paddingRight: buscandoCnpj ? 40 : 12,
-                }}
-              />
-              {buscandoCnpj && (
-                <span style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  width: 16, height: 16, border: '2.5px solid #D1D5DB',
-                  borderTopColor: COR_VERDE, borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite', display: 'block',
-                }} />
+            {/* CNPJ */}
+            <div style={s.fieldGroup}>
+              <label style={s.label}>
+                CNPJ
+                <span style={s.labelHint}>(preenchimento automático)</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={cnpj}
+                  onChange={e => handleCnpjChange(e.target.value)}
+                  placeholder="00.000.000/0001-00"
+                  maxLength={18}
+                  style={{
+                    ...s.input,
+                    borderColor: corBordaCnpj,
+                    paddingRight: buscandoCnpj ? 40 : 12,
+                  }}
+                  onFocus={e => { if (!cnpjStatus) { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; } }}
+                  onBlur={e => { if (!cnpjStatus) { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; } }}
+                />
+                {buscandoCnpj && (
+                  <span style={s.cnpjSpinner} />
+                )}
+              </div>
+              {cnpjMsg && (
+                <div style={{ fontSize: 12, marginTop: 4, color: corMsgCnpj }}>{cnpjMsg}</div>
               )}
             </div>
-            {cnpjMsg && (
-              <div style={{
-                fontSize: 12, marginTop: 4,
-                color: cnpjStatus === 'ok' ? COR_VERDE : cnpjStatus === 'invalido' ? '#EF4444' : '#B45309',
-              }}>
-                {cnpjMsg}
-              </div>
+
+            {/* Razão Social */}
+            <Campo
+              label="Razão Social *"
+              value={razao_social}
+              onChange={setRazaoSocial}
+              placeholder="Empresa Ltda"
+              destaque={cnpjStatus === 'ok'}
+            />
+
+            {/* Nome Fantasia */}
+            <Campo
+              label="Nome Fantasia"
+              value={nome_fantasia}
+              onChange={setNomeFantasia}
+              placeholder="Nome comercial"
+              destaque={cnpjStatus === 'ok'}
+            />
+
+            {/* ERP */}
+            <Campo
+              label="ERP Utilizado"
+              value={erp_utilizado}
+              onChange={setErpUtilizado}
+              placeholder="SAP, TOTVS, Omie..."
+            />
+
+            {erro && (
+              <div style={s.alertDanger}>{erro}</div>
             )}
-          </div>
+          </form>
+        </div>
 
-          {/* ── Razão Social ── */}
-          <Campo
-            label="Razão Social *"
-            value={razao_social}
-            onChange={setRazaoSocial}
-            placeholder="Empresa Ltda"
-            destaque={cnpjStatus === 'ok'}
-          />
-
-          {/* ── Nome Fantasia ── */}
-          <Campo
-            label="Nome Fantasia"
-            value={nome_fantasia}
-            onChange={setNomeFantasia}
-            placeholder="Nome comercial"
-            destaque={cnpjStatus === 'ok'}
-          />
-
-          {/* ── ERP ── */}
-          <Campo
-            label="ERP Utilizado"
-            value={erp_utilizado}
-            onChange={setErpUtilizado}
-            placeholder="SAP, TOTVS, Omie..."
-          />
-
-          {erro && (
-            <div style={{
-              background: '#FEF2F2', border: '1px solid #FECACA',
-              color: '#DC2626', borderRadius: 8, padding: '10px 14px',
-              fontSize: 13, marginBottom: 16,
-            }}>
-              {erro}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={onFechar}
-              style={{
-                background: '#F3F4F6', border: 'none', borderRadius: 8,
-                padding: '10px 20px', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', color: '#374151',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading || buscandoCnpj || cnpjStatus === 'invalido'}
-              style={{
-                background: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? '#9CA3AF' : COR_VERDE,
-                color: '#fff', border: 'none', borderRadius: 8,
-                padding: '10px 24px', fontSize: 14, fontWeight: 700,
-                cursor: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
-            >
-              {buscandoCnpj ? 'Consultando CNPJ...' : loading ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
+        {/* Footer */}
+        <div style={s.modalFooter}>
+          <button
+            type="button"
+            onClick={onFechar}
+            style={s.btnCancel}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSalvar}
+            disabled={loading || buscandoCnpj || cnpjStatus === 'invalido'}
+            style={{
+              ...s.btnSave,
+              background: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? '#94A3B8' : '#2563EB',
+              cursor: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? 'not-allowed' : 'pointer',
+            }}
+            onMouseEnter={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = '#1D4ED8'; }}
+            onMouseLeave={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = '#2563EB'; }}
+          >
+            {buscandoCnpj ? 'Consultando CNPJ...' : loading ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -275,31 +252,165 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
 
 function Campo({ label, value, onChange, placeholder, destaque }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={estiloLabel}>{label}</label>
+    <div style={{ marginBottom: 16 }}>
+      <label style={s.label}>{label}</label>
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         style={{
-          ...estiloInput,
-          borderColor: destaque && value ? '#1D9E75' : '#D1D5DB',
-          background: destaque && value ? '#F0FBF6' : '#fff',
-          transition: 'border-color .2s, background .2s',
+          ...s.input,
+          borderColor: destaque && value ? '#059669' : '#E2E8F0',
+          background: destaque && value ? '#ECFDF5' : '#FFFFFF',
+          transition: 'border-color 150ms ease, background 150ms ease',
+        }}
+        onFocus={e => {
+          if (!destaque || !value) {
+            e.target.style.borderColor = '#2563EB';
+            e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)';
+          }
+        }}
+        onBlur={e => {
+          if (!destaque || !value) {
+            e.target.style.borderColor = '#E2E8F0';
+            e.target.style.boxShadow = 'none';
+          }
         }}
       />
     </div>
   );
 }
 
-const estiloLabel = {
-  display: 'block', fontSize: 13, fontWeight: 600,
-  color: '#374151', marginBottom: 6,
-};
-
-const estiloInput = {
-  width: '100%', border: '1.5px solid #D1D5DB', borderRadius: 8,
-  padding: '10px 12px', fontSize: 14, color: '#111',
-  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-  transition: 'border-color .2s',
+const s = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15,23,42,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 24,
+  },
+  modal: {
+    background: '#FFFFFF',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 480,
+    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+    border: '1px solid #E2E8F0',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '20px 24px',
+    borderBottom: '1px solid #E2E8F0',
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#0F172A',
+  },
+  modalClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: 22,
+    cursor: 'pointer',
+    color: '#94A3B8',
+    lineHeight: 1,
+    padding: 0,
+    transition: 'color 150ms ease',
+  },
+  modalBody: {
+    padding: '20px 24px',
+    overflowY: 'auto',
+  },
+  modalFooter: {
+    display: 'flex',
+    gap: 10,
+    justifyContent: 'flex-end',
+    padding: '16px 24px',
+    borderTop: '1px solid #E2E8F0',
+    background: '#FAFAFA',
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    display: 'block',
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#475569',
+    marginBottom: 6,
+  },
+  labelHint: {
+    fontWeight: 400,
+    color: '#94A3B8',
+    fontSize: 11,
+    marginLeft: 6,
+  },
+  input: {
+    width: '100%',
+    border: '1.5px solid #E2E8F0',
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 14,
+    color: '#0F172A',
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+    background: '#FFFFFF',
+    transition: 'border-color 150ms ease, box-shadow 150ms ease',
+  },
+  cnpjSpinner: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 16,
+    height: 16,
+    border: '2.5px solid #E2E8F0',
+    borderTopColor: '#2563EB',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+    display: 'block',
+  },
+  alertDanger: {
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    color: '#DC2626',
+    borderRadius: 8,
+    padding: '10px 14px',
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  btnCancel: {
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: 8,
+    padding: '10px 20px',
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
+    color: '#475569',
+    transition: 'background 150ms ease',
+  },
+  btnSave: {
+    background: '#2563EB',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    padding: '10px 24px',
+    fontSize: 14,
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    transition: 'background 150ms ease',
+  },
 };

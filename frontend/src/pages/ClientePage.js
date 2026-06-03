@@ -13,9 +13,6 @@ import {
   salvarPerfilCliente,
 } from '../api';
 
-const COR_PRIMARIA = '#1A1A2E';
-const COR_VERDE    = '#1D9E75';
-
 const ABAS = [
   { key: 'despesas',  label: 'Despesas',      icon: TrendingDown },
   { key: 'receitas',  label: 'Receitas',       icon: TrendingUp },
@@ -37,11 +34,11 @@ function formatarMoeda(v) {
 // Aba Historico
 // ---------------------------------------------------------------------------
 function AbaHistorico({ clienteId }) {
-  const [lista, setLista]         = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const [detalhe, setDetalhe]     = useState(null);
+  const [lista, setLista]             = useState([]);
+  const [carregando, setCarregando]   = useState(true);
+  const [detalhe, setDetalhe]         = useState(null);
   const [loadDetalhe, setLoadDetalhe] = useState(null);
-  const [loadExport, setLoadExport] = useState(null);
+  const [loadExport, setLoadExport]   = useState(null);
 
   useEffect(() => {
     listarConciliacoes(clienteId)
@@ -73,57 +70,59 @@ function AbaHistorico({ clienteId }) {
     }
   }
 
-  if (carregando) return <p style={{ color: '#6B7280' }}>Carregando historico...</p>;
+  if (carregando) return <p style={{ color: '#94A3B8', fontSize: 14 }}>Carregando historico...</p>;
 
   if (lista.length === 0) return (
-    <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF' }}>
-      <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-      <div>Nenhuma conciliacao realizada ainda para este cliente.</div>
+    <div style={{ textAlign: 'center', padding: '48px 0', color: '#94A3B8' }}>
+      <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
+      <div style={{ fontSize: 14 }}>Nenhuma conciliação realizada ainda para este cliente.</div>
     </div>
   );
 
   return (
     <div>
-      <h3 style={{ marginTop: 0, color: COR_PRIMARIA }}>Historico de Conciliacoes</h3>
-      <div style={{ overflowX: 'auto' }}>
+      <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 600, color: '#0F172A', marginBottom: 20 }}>
+        Histórico de Conciliações
+      </h3>
+      <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #E2E8F0' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
-              {['Periodo', 'Tipo', 'Data execucao', 'Total', 'Conciliados', 'Pendentes', 'Diferenca', 'Acoes'].map(h => (
-                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>{h}</th>
+            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+              {['Período', 'Tipo', 'Data execução', 'Total', 'Conciliados', 'Pendentes', 'Diferença', 'Ações'].map(h => (
+                <th key={h} style={s.thCell}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {lista.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            {lista.map((c, i) => (
+              <tr
+                key={c.id}
+                style={{ borderBottom: '1px solid #F1F5F9', background: i % 2 === 0 ? '#FFFFFF' : '#FAFAFA' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#FFFFFF' : '#FAFAFA'}
               >
-                <td style={{ padding: '10px 12px', fontWeight: 600 }}>{c.periodo || '-'}</td>
-                <td style={{ padding: '10px 12px', textTransform: 'capitalize' }}>{c.tipo}</td>
-                <td style={{ padding: '10px 12px' }}>{formatarData(c.criado_em)}</td>
-                <td style={{ padding: '10px 12px' }}>{formatarMoeda(c.total_fatura)}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span style={{ background: '#F0FDF4', color: '#16A34A', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
-                    {c.conciliados}
+                <td style={s.tdCell}><span style={{ fontWeight: 600, color: '#0F172A' }}>{c.periodo || '-'}</span></td>
+                <td style={s.tdCell}><span style={{ textTransform: 'capitalize', color: '#475569' }}>{c.tipo}</span></td>
+                <td style={s.tdCell}><span style={{ color: '#475569' }}>{formatarData(c.criado_em)}</span></td>
+                <td style={s.tdCell}><span style={{ color: '#0F172A', fontWeight: 500 }}>{formatarMoeda(c.total_fatura)}</span></td>
+                <td style={s.tdCell}>
+                  <span style={s.badgeSuccess}>{c.conciliados}</span>
+                </td>
+                <td style={s.tdCell}>
+                  <span style={s.badgeDanger}>{c.pendentes}</span>
+                </td>
+                <td style={s.tdCell}>
+                  <span style={{ color: Number(c.diferenca) > 0 ? '#DC2626' : '#059669', fontWeight: 600 }}>
+                    {formatarMoeda(c.diferenca)}
                   </span>
                 </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span style={{ background: '#FEF2F2', color: '#DC2626', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
-                    {c.pendentes}
-                  </span>
-                </td>
-                <td style={{ padding: '10px 12px', color: Number(c.diferenca) > 0 ? '#DC2626' : '#16A34A', fontWeight: 600 }}>
-                  {formatarMoeda(c.diferenca)}
-                </td>
-                <td style={{ padding: '10px 12px' }}>
+                <td style={s.tdCell}>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => verDetalhe(c.id)}
                       disabled={loadDetalhe === c.id}
                       title="Ver detalhes"
-                      style={estiloBtnIcone}
+                      style={s.btnIconTable}
                     >
                       <Eye size={14} />
                     </button>
@@ -131,7 +130,7 @@ function AbaHistorico({ clienteId }) {
                       onClick={() => baixarExcel(c.id)}
                       disabled={loadExport === c.id}
                       title="Baixar Excel"
-                      style={{ ...estiloBtnIcone, background: '#F0FDF4', color: '#16A34A' }}
+                      style={{ ...s.btnIconTable, background: '#ECFDF5', color: '#059669', borderColor: '#A7F3D0' }}
                     >
                       <Download size={14} />
                     </button>
@@ -145,35 +144,26 @@ function AbaHistorico({ clienteId }) {
 
       {/* Modal de detalhe */}
       {detalhe && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: 24,
-        }}
+        <div
+          style={s.modalOverlay}
           onClick={e => { if (e.target === e.currentTarget) setDetalhe(null); }}
         >
-          <div style={{
-            background: '#fff', borderRadius: 16, padding: '28px 32px',
-            width: '100%', maxWidth: 700, maxHeight: '80vh',
-            overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, color: COR_PRIMARIA }}>
+          <div style={s.modalBox}>
+            <div style={s.modalHeader}>
+              <h3 style={s.modalTitle}>
                 Detalhes — {detalhe.tipo} {detalhe.periodo}
               </h3>
-              <button onClick={() => setDetalhe(null)} style={{
-                background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280',
-              }}>&times;</button>
+              <button onClick={() => setDetalhe(null)} style={s.modalClose}>&times;</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
-              <Stat label="Total Fatura" valor={formatarMoeda(detalhe.total_fatura)} />
-              <Stat label="Total ERP" valor={formatarMoeda(detalhe.total_erp)} />
-              <Stat label="Diferenca" valor={formatarMoeda(detalhe.diferenca)} />
-              <Stat label="Conciliados" valor={detalhe.conciliados} cor="#16A34A" />
-              <Stat label="Pendentes" valor={detalhe.pendentes} cor="#DC2626" />
-              <Stat label="Total Itens" valor={detalhe.total_itens} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+              <StatCard label="Total Fatura"  valor={formatarMoeda(detalhe.total_fatura)} />
+              <StatCard label="Total ERP"     valor={formatarMoeda(detalhe.total_erp)} />
+              <StatCard label="Diferença"     valor={formatarMoeda(detalhe.diferenca)} />
+              <StatCard label="Conciliados"   valor={detalhe.conciliados} cor="#059669" />
+              <StatCard label="Pendentes"     valor={detalhe.pendentes} cor="#DC2626" />
+              <StatCard label="Total Itens"   valor={detalhe.total_itens} />
             </div>
-            <div style={{ fontSize: 12, color: '#6B7280', fontStyle: 'italic' }}>
+            <div style={{ fontSize: 12, color: '#94A3B8' }}>
               Executado em {formatarData(detalhe.criado_em)}
             </div>
           </div>
@@ -183,13 +173,16 @@ function AbaHistorico({ clienteId }) {
   );
 }
 
-function Stat({ label, valor, cor }) {
+function StatCard({ label, valor, cor }) {
   return (
     <div style={{
-      background: '#F9FAFB', borderRadius: 10, padding: '12px 16px',
+      background: '#F8FAFC',
+      borderRadius: 10,
+      padding: '14px 16px',
+      border: '1px solid #E2E8F0',
     }}>
-      <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: cor || COR_PRIMARIA }}>{valor}</div>
+      <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: cor || '#0F172A' }}>{valor}</div>
     </div>
   );
 }
@@ -234,11 +227,13 @@ function AbaConfiguracoes({ clienteId }) {
     }
   }
 
-  if (!perfil) return <p style={{ color: '#6B7280' }}>Carregando configuracoes...</p>;
+  if (!perfil) return <p style={{ color: '#94A3B8', fontSize: 14 }}>Carregando configuracoes...</p>;
 
   return (
     <div style={{ maxWidth: 600 }}>
-      <h3 style={{ marginTop: 0, color: COR_PRIMARIA }}>Configuracoes do Cliente</h3>
+      <h3 style={{ marginTop: 0, fontSize: 16, fontWeight: 600, color: '#0F172A', marginBottom: 20 }}>
+        Configurações do Cliente
+      </h3>
       <form onSubmit={salvar}>
         <CampoConfig
           label="Cenario de Parcelamento"
@@ -255,10 +250,10 @@ function AbaConfiguracoes({ clienteId }) {
 
         {msg && (
           <div style={{
-            padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12,
-            background: msg.includes('sucesso') ? '#F0FDF4' : '#FEF2F2',
-            color: msg.includes('sucesso') ? '#15803D' : '#DC2626',
-            border: `1px solid ${msg.includes('sucesso') ? '#BBF7D0' : '#FECACA'}`,
+            padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16,
+            background: msg.includes('sucesso') ? '#ECFDF5' : '#FEF2F2',
+            color: msg.includes('sucesso') ? '#059669' : '#DC2626',
+            border: `1px solid ${msg.includes('sucesso') ? '#A7F3D0' : '#FECACA'}`,
           }}>
             {msg}
           </div>
@@ -268,12 +263,15 @@ function AbaConfiguracoes({ clienteId }) {
           type="submit"
           disabled={salvando}
           style={{
-            background: salvando ? '#aaa' : COR_VERDE, color: '#fff',
-            border: 'none', borderRadius: 8, padding: '11px 24px',
-            fontSize: 14, fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer',
+            background: salvando ? '#94A3B8' : '#2563EB',
+            color: '#fff', border: 'none', borderRadius: 8, padding: '11px 24px',
+            fontSize: 14, fontWeight: 600, cursor: salvando ? 'not-allowed' : 'pointer',
+            transition: 'background 150ms ease',
           }}
+          onMouseEnter={e => { if (!salvando) e.currentTarget.style.background = '#1D4ED8'; }}
+          onMouseLeave={e => { if (!salvando) e.currentTarget.style.background = '#2563EB'; }}
         >
-          {salvando ? 'Salvando...' : 'Salvar Configuracoes'}
+          {salvando ? 'Salvando...' : 'Salvar Configurações'}
         </button>
       </form>
     </div>
@@ -282,15 +280,15 @@ function AbaConfiguracoes({ clienteId }) {
 
 function CampoConfig({ label, value, onChange, tipo = 'text', opcoes }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#475569', marginBottom: 6 }}>
         {label}
       </label>
       {tipo === 'select' ? (
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
-          style={{ width: '100%', border: '1.5px solid #D1D5DB', borderRadius: 8, padding: '9px 12px', fontSize: 14, fontFamily: 'inherit' }}
+          style={s.configInput}
         >
           {(opcoes || []).map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
         </select>
@@ -299,7 +297,7 @@ function CampoConfig({ label, value, onChange, tipo = 'text', opcoes }) {
           type={tipo}
           value={value}
           onChange={e => onChange(e.target.value)}
-          style={{ width: '100%', border: '1.5px solid #D1D5DB', borderRadius: 8, padding: '9px 12px', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={s.configInput}
         />
       )}
     </div>
@@ -314,8 +312,8 @@ export default function ClientePage() {
   const navigate   = useNavigate();
   const { analista } = useAuth();
 
-  const [cliente, setCliente]     = useState(null);
-  const [aba, setAba]             = useState('despesas');
+  const [cliente, setCliente]         = useState(null);
+  const [aba, setAba]                 = useState('despesas');
   const [processando, setProcessando] = useState(null);
 
   useEffect(() => {
@@ -326,65 +324,46 @@ export default function ClientePage() {
 
   if (!cliente) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'Inter, system-ui, sans-serif', color: '#94A3B8', fontSize: 14 }}>
         Carregando...
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F4F4F8', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={s.root}>
 
       {/* Header */}
-      <div style={{
-        background: COR_PRIMARIA, color: '#fff',
-        padding: '14px 32px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <header style={s.header} className="resp-header">
+        <div style={s.headerLeft}>
           <button
             onClick={() => navigate('/clientes')}
-            style={{
-              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff', borderRadius: 8, padding: '7px 14px',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
+            style={s.btnBack}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
           >
             <ArrowLeft size={14} /> Clientes
           </button>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 17 }}>
-              {cliente.nome_fantasia || cliente.razao_social}
-            </div>
-            {cliente.nome_fantasia && (
-              <div style={{ fontSize: 11, color: '#aaa' }}>{cliente.razao_social}</div>
-            )}
+          <div style={s.breadcrumb}>
+            <span style={s.breadcrumbBase}>Clientes</span>
+            <span style={s.breadcrumbSep}>/</span>
+            <span style={s.breadcrumbCurrent}>{cliente.nome_fantasia || cliente.razao_social}</span>
           </div>
         </div>
-        <div style={{ fontSize: 13, color: '#ccc' }}>
-          {analista?.nome}
-        </div>
-      </div>
+        <div style={s.headerUser}>{analista?.nome}</div>
+      </header>
 
       {/* Banner de processamento */}
       {processando && (
-        <div style={{
-          background: '#1A5FA8', color: '#fff',
-          padding: '9px 32px', display: 'flex', alignItems: 'center', gap: 12, fontSize: 13,
-        }}>
-          <div style={{
-            width: 16, height: 16, borderRadius: '50%',
-            border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: '#fff',
-            animation: 'spin 0.8s linear infinite', flexShrink: 0,
-          }} />
+        <div style={s.banner} className="resp-banner">
+          <div style={s.bannerSpinner} />
           <span>
-            <strong>Conciliacao de {processando === 'despesas' ? 'Despesas' : 'Receitas'} em andamento...</strong>
-            {' '}Voce pode navegar entre as abas.
+            <strong>Conciliação de {processando === 'despesas' ? 'Despesas' : 'Receitas'} em andamento...</strong>
+            {' '}Você pode navegar entre as abas.
           </span>
           <button
             onClick={() => setAba(processando)}
-            style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 5, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+            style={s.bannerBtn}
           >
             Ver progresso &rarr;
           </button>
@@ -392,32 +371,34 @@ export default function ClientePage() {
       )}
 
       {/* Abas */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '0 32px', display: 'flex', gap: 0 }}>
-        {ABAS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setAba(key)}
-            style={{
-              padding: '13px 20px', border: 'none', background: 'none', cursor: 'pointer',
-              fontWeight: aba === key ? 700 : 400, fontSize: 14,
-              color: aba === key ? COR_PRIMARIA : '#888',
-              borderBottom: aba === key ? `2.5px solid ${COR_PRIMARIA}` : '2.5px solid transparent',
-              display: 'flex', alignItems: 'center', gap: 7, transition: 'all .15s',
-              position: 'relative', fontFamily: 'inherit',
-            }}>
-            <Icon size={15} /> {label}
-            {processando === key && (
-              <span style={{
-                width: 7, height: 7, background: '#3B9EFF', borderRadius: '50%',
-                position: 'absolute', top: 8, right: 6,
-                animation: 'pulse 1.2s ease-in-out infinite',
-              }} />
-            )}
-          </button>
-        ))}
-      </div>
+      <nav style={s.tabs} className="resp-tabs">
+        {ABAS.map(({ key, label, icon: Icon }) => {
+          const ativa = aba === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setAba(key)}
+              style={{
+                ...s.tabBtn,
+                color: ativa ? '#2563EB' : '#94A3B8',
+                borderBottom: ativa ? '2px solid #2563EB' : '2px solid transparent',
+                fontWeight: ativa ? 600 : 400,
+              }}
+              onMouseEnter={e => { if (!ativa) e.currentTarget.style.color = '#475569'; }}
+              onMouseLeave={e => { if (!ativa) e.currentTarget.style.color = '#94A3B8'; }}
+            >
+              <Icon size={15} /> {label}
+              {processando === key && (
+                <span style={s.processingDot} />
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Conteudo */}
-      <div style={{ maxWidth: 980, margin: '0 auto', padding: '28px 24px' }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: '28px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={s.content} className="resp-content">
+        <div style={s.contentCard} className="resp-card">
           <div style={{ display: aba === 'despesas' ? 'block' : 'none' }}>
             <DespesasPage setProcessando={setProcessando} clienteId={id} />
           </div>
@@ -425,25 +406,244 @@ export default function ClientePage() {
             <ReceitasPage setProcessando={setProcessando} clienteId={id} />
           </div>
           {aba === 'historico' && <AbaHistorico clienteId={id} />}
-          {aba === 'config' && <AbaConfiguracoes clienteId={id} />}
+          {aba === 'config'    && <AbaConfiguracoes clienteId={id} />}
         </div>
       </div>
 
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin  { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
     </div>
   );
 }
 
-const estiloBtnIcone = {
-  background: '#F3F4F6',
-  border: '1px solid #E5E7EB',
-  borderRadius: 6,
-  padding: '5px 8px',
-  cursor: 'pointer',
-  color: '#374151',
-  display: 'flex',
-  alignItems: 'center',
+const s = {
+  root: {
+    minHeight: '100vh',
+    background: '#F8FAFC',
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif',
+  },
+  header: {
+    background: '#FFFFFF',
+    borderBottom: '1px solid #E2E8F0',
+    padding: '14px 32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+  },
+  btnBack: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    color: '#475569',
+    borderRadius: 8,
+    padding: '7px 14px',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    transition: 'all 150ms ease',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 14,
+  },
+  breadcrumbBase: {
+    color: '#94A3B8',
+  },
+  breadcrumbSep: {
+    color: '#CBD5E1',
+  },
+  breadcrumbCurrent: {
+    color: '#0F172A',
+    fontWeight: 600,
+  },
+  headerUser: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: 500,
+  },
+  banner: {
+    background: '#2563EB',
+    color: '#fff',
+    padding: '10px 32px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    fontSize: 13,
+  },
+  bannerSpinner: {
+    width: 16,
+    height: 16,
+    borderRadius: '50%',
+    border: '2.5px solid rgba(255,255,255,0.35)',
+    borderTopColor: '#fff',
+    animation: 'spin 0.8s linear infinite',
+    flexShrink: 0,
+  },
+  bannerBtn: {
+    marginLeft: 'auto',
+    background: 'rgba(255,255,255,0.2)',
+    border: 'none',
+    color: '#fff',
+    borderRadius: 6,
+    padding: '4px 12px',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  tabs: {
+    background: '#FFFFFF',
+    borderBottom: '1px solid #E2E8F0',
+    padding: '0 32px',
+    display: 'flex',
+    gap: 0,
+  },
+  tabBtn: {
+    padding: '14px 20px',
+    border: 'none',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: 14,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+    transition: 'color 150ms ease, border-color 150ms ease',
+    position: 'relative',
+    fontFamily: 'inherit',
+    marginBottom: -1,
+  },
+  processingDot: {
+    width: 7,
+    height: 7,
+    background: '#2563EB',
+    borderRadius: '50%',
+    position: 'absolute',
+    top: 8,
+    right: 6,
+    animation: 'pulse 1.2s ease-in-out infinite',
+  },
+  content: {
+    maxWidth: 980,
+    margin: '0 auto',
+    padding: '28px 24px',
+  },
+  contentCard: {
+    background: '#FFFFFF',
+    borderRadius: 12,
+    padding: '28px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
+    border: '1px solid #E2E8F0',
+  },
+  thCell: {
+    padding: '10px 12px',
+    textAlign: 'left',
+    fontWeight: 600,
+    fontSize: 11,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    whiteSpace: 'nowrap',
+  },
+  tdCell: {
+    padding: '10px 12px',
+    fontSize: 13,
+    whiteSpace: 'nowrap',
+  },
+  badgeSuccess: {
+    background: '#ECFDF5',
+    color: '#059669',
+    borderRadius: 20,
+    padding: '2px 10px',
+    fontWeight: 700,
+    fontSize: 12,
+  },
+  badgeDanger: {
+    background: '#FEF2F2',
+    color: '#DC2626',
+    borderRadius: 20,
+    padding: '2px 10px',
+    fontWeight: 700,
+    fontSize: 12,
+  },
+  btnIconTable: {
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: 6,
+    padding: '5px 8px',
+    cursor: 'pointer',
+    color: '#475569',
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 150ms ease',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15,23,42,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: 24,
+  },
+  modalBox: {
+    background: '#FFFFFF',
+    borderRadius: 16,
+    padding: '28px 32px',
+    width: '100%',
+    maxWidth: 700,
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+    border: '1px solid #E2E8F0',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottom: '1px solid #E2E8F0',
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#0F172A',
+  },
+  modalClose: {
+    background: 'none',
+    border: 'none',
+    fontSize: 22,
+    cursor: 'pointer',
+    color: '#94A3B8',
+    lineHeight: 1,
+    padding: 0,
+    transition: 'color 150ms ease',
+  },
+  configInput: {
+    width: '100%',
+    border: '1.5px solid #E2E8F0',
+    borderRadius: 8,
+    padding: '9px 12px',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    color: '#0F172A',
+    background: '#FFFFFF',
+    outline: 'none',
+  },
 };

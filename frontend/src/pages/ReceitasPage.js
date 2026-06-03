@@ -33,11 +33,11 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
   const [mapeamentoErp, setMapeamentoErp] = useState({});
   const [mapeamentoBanco, setMapeamentoBanco] = useState({});
   const [resultado, setResultado]         = useState(null);
-  const [loading, setLoading]               = useState(false);
-  const [loadingSeg, setLoadingSeg]         = useState(0);
-  const [acordando, setAcordando]           = useState(false);
-  const [acordandoTent, setAcordandoTent]   = useState(0);
-  const [erro, setErro]                     = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [loadingSeg, setLoadingSeg]       = useState(0);
+  const [acordando, setAcordando]         = useState(false);
+  const [acordandoTent, setAcordandoTent] = useState(0);
+  const [erro, setErro]                   = useState('');
 
   useEffect(() => {
     try {
@@ -77,7 +77,7 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
     setAcordando(false);
 
     if (!online) {
-      setErro('❌ Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar.');
+      setErro('Não foi possível conectar ao servidor após 60 segundos. Verifique se o backend está no ar.');
       setProcessando?.(null);
       return;
     }
@@ -95,9 +95,9 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
       });
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
-        setErro('⏱ Timeout. Clique em Executar novamente — o servidor já está acordado.');
+        setErro('Timeout. Clique em Executar novamente — o servidor já está acordado.');
       } else if (!e.response) {
-        setErro('🔌 Erro de conexão com o servidor. Tente novamente em alguns segundos.');
+        setErro('Erro de conexão com o servidor. Tente novamente em alguns segundos.');
       } else {
         setErro(e.response?.data?.detail || 'Erro ao processar. Verifique os arquivos e tente novamente.');
       }
@@ -120,22 +120,23 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
 
   return (
     <div>
+      {/* Título */}
       <div className="resp-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Conciliação de Receitas</h2>
-          <p style={{ fontSize: 13, color: '#666', margin: '4px 0 20px' }}>
+          <h2 style={s.pageTitle}>Conciliação de Receitas</h2>
+          <p style={s.pageSubtitle}>
             Operadora vs ERP — Contas a Receber vs Extrato Bancário &nbsp;
-            <span style={{ fontSize: 11, color: '#aaa' }}>Aceita CSV, Excel, OFX/QFX ou PDF</span>
+            <span style={s.pageHint}>Aceita CSV, Excel, OFX/QFX ou PDF</span>
           </p>
         </div>
         {resultado && (
-          <button onClick={handleLimpar}
-            style={{ fontSize: 12, color: '#888', background: '#F5F5FA', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+          <button onClick={handleLimpar} style={s.btnSecondary}>
             <RotateCcw size={12} /> Nova análise
           </button>
         )}
       </div>
 
+      {/* Upload cards */}
       <div className="resp-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 8 }}>
         <UploadCard titulo="Operadora de Cartão" subtitulo="Stone, Cielo, Rede… CSV, OFX ou PDF" icone={CreditCard}
           arquivo={operadora} onArquivo={setOperadora} />
@@ -154,91 +155,120 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
           onChange={setMapeamentoBanco} campos={CAMPOS_BANCO} />
       )}
 
+      {/* Controles */}
       <div className="resp-controls" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 16 }}>
         <div>
-          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Período (opcional)</label>
-          <input type="month" value={periodoMes} onChange={e => setPeriodoMes(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }} />
+          <label style={s.controlLabel}>Período (opcional)</label>
+          <input
+            type="month"
+            value={periodoMes}
+            onChange={e => setPeriodoMes(e.target.value)}
+            style={s.controlInput}
+          />
         </div>
-        <button onClick={handleConciliar} disabled={loading}
-          style={{ marginTop: 20, padding: '9px 22px', background: '#1A1A2E', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={handleConciliar}
+          disabled={loading}
+          style={{
+            ...s.btnExecutar,
+            marginTop: 20,
+            opacity: loading ? 0.7 : 1,
+            cursor: loading ? 'not-allowed' : 'pointer',
+          }}
+          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1D4ED8'; }}
+          onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#2563EB'; }}
+        >
           {loading
-            ? <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Processando…</>
+            ? <><div style={s.miniSpinner} /> Processando…</>
             : <><Play size={15} /> Executar Conciliação</>}
         </button>
       </div>
 
+      {/* Acordando */}
       {acordando && (
-        <div style={{ background: '#FEF3E2', border: '1px solid #F5D99A', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #F5D99A', borderTopColor: '#BA7517', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+        <div style={s.alertWarning}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #FDE68A', borderTopColor: '#D97706', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#7A4500' }}>
-              ☕ Acordando o servidor… tentativa {acordandoTent}/12
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#92400E' }}>
+              Acordando o servidor… tentativa {acordandoTent}/12
             </div>
-            <div style={{ fontSize: 11, color: '#8A5500', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#B45309', marginTop: 2 }}>
               O servidor estava em modo de espera. Aguarde até 60 segundos.
             </div>
           </div>
         </div>
       )}
 
+      {/* Loading */}
       {loading && (
-        <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 8, padding: '14px 16px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BDD4F7', borderTopColor: '#1A5FA8', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+        <div style={s.alertInfo}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BFDBFE', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA8' }}>
-              Analisando arquivos… <span style={{ fontWeight: 400, color: '#555' }}>{loadingSeg}s</span>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1E40AF' }}>
+              Analisando arquivos… <span style={{ fontWeight: 400, color: '#475569' }}>{loadingSeg}s</span>
             </div>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
               {loadingSeg < 15 ? 'Processando — pode navegar para outras abas normalmente.' :
-               loadingSeg < 35 ? '⏳ Servidor acordando do modo de espera (até 40s)…' :
-               '🔄 Quase lá! Continue aguardando.'}
+               loadingSeg < 35 ? 'Servidor acordando do modo de espera (até 40s)…' :
+               'Quase lá! Continue aguardando.'}
             </div>
           </div>
         </div>
       )}
 
+      {/* Erro */}
       {erro && (
-        <div style={{ background: '#FCEBEB', color: '#A32D2D', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, display: 'flex', gap: 8 }}>
+        <div style={s.alertDanger}>
           <AlertTriangle size={16} /> {erro}
         </div>
       )}
 
+      {/* Resultado */}
       {resultado && r && (
-        <div style={{ marginTop: 24 }}>
-          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div style={{ marginTop: 28, animation: 'fadeIn 0.2s ease' }}>
+          {/* Cards contagem */}
+          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             {[
-              { label: 'Total analisado', value: r.total_itens,  color: '#378ADD' },
-              { label: 'Conciliados',     value: r.conciliados,  color: '#1D9E75' },
-              { label: 'Divergências',    value: r.divergencias, color: '#BA7517' },
-              { label: 'Ausentes',        value: r.ausentes,     color: '#E24B4A' },
+              { label: 'Total analisado', value: r.total_itens,  borderColor: '#2563EB', numColor: '#0F172A' },
+              { label: 'Conciliados',     value: r.conciliados,  borderColor: '#059669', numColor: '#059669' },
+              { label: 'Divergências',    value: r.divergencias, borderColor: '#D97706', numColor: '#D97706' },
+              { label: 'Ausentes',        value: r.ausentes,     borderColor: '#DC2626', numColor: '#DC2626' },
             ].map(m => (
-              <div key={m.label} style={{ background: '#F7F7FB', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>{m.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: m.color }}>{m.value}</div>
+              <div key={m.label} style={{ ...s.statCard, borderLeftColor: m.borderColor }}>
+                <div style={s.statLabel}>{m.label}</div>
+                <div style={{ ...s.statNum, color: m.numColor }}>{m.value}</div>
               </div>
             ))}
           </div>
 
-          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          {/* Cards valores */}
+          <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
             {[
-              { label: 'Total operadora', value: `R$ ${r.total_operadora?.toFixed(2)}` },
-              { label: 'Total ERP',       value: `R$ ${r.total_erp?.toFixed(2)}` },
-              { label: 'Total banco',     value: `R$ ${r.total_banco?.toFixed(2)}` },
+              { label: 'Total operadora', value: `R$ ${r.total_operadora?.toFixed(2)}`, destaque: false },
+              { label: 'Total ERP',       value: `R$ ${r.total_erp?.toFixed(2)}`,       destaque: false },
+              { label: 'Total banco',     value: `R$ ${r.total_banco?.toFixed(2)}`,     destaque: false },
               { label: 'Dif. op. vs ERP', value: `R$ ${r.diferenca_op_erp?.toFixed(2)}`, destaque: r.diferenca_op_erp !== 0 },
             ].map(m => (
-              <div key={m.label} style={{ background: m.destaque ? '#FEF3E2' : '#F7F7FB', borderRadius: 8, padding: '10px 14px' }}>
-                <div style={{ fontSize: 11, color: '#888' }}>{m.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2, color: m.destaque ? '#8A4A00' : '#333' }}>{m.value}</div>
+              <div key={m.label} style={{
+                ...s.statCard,
+                borderLeftColor: m.destaque ? '#D97706' : '#E2E8F0',
+                background: m.destaque ? '#FFFBEB' : '#FFFFFF',
+              }}>
+                <div style={s.statLabel}>{m.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2, color: m.destaque ? '#92400E' : '#0F172A' }}>{m.value}</div>
               </div>
             ))}
           </div>
 
           <TabelaResultado itens={resultado.itens} modo="receitas" />
 
-          <div style={{ textAlign: 'right', marginTop: 14 }}>
-            <button onClick={() => exportarRelatorio(resultado)}
-              style={{ padding: '8px 20px', background: '#1D9E75', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ textAlign: 'right', marginTop: 16 }}>
+            <button
+              onClick={() => exportarRelatorio(resultado)}
+              style={s.btnExportar}
+              onMouseEnter={e => { e.currentTarget.style.background = '#047857'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#059669'; }}
+            >
               <Download size={15} /> Exportar Excel
             </button>
           </div>
@@ -247,3 +277,147 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
     </div>
   );
 }
+
+const s = {
+  pageTitle: {
+    fontSize: 20,
+    fontWeight: 600,
+    margin: 0,
+    color: '#0F172A',
+    letterSpacing: '-0.3px',
+  },
+  pageSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    margin: '4px 0 20px',
+  },
+  pageHint: {
+    fontSize: 11,
+    color: '#CBD5E1',
+  },
+  btnSecondary: {
+    fontSize: 12,
+    color: '#475569',
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: 6,
+    padding: '6px 12px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  controlLabel: {
+    fontSize: 12,
+    color: '#475569',
+    display: 'block',
+    marginBottom: 4,
+    fontWeight: 500,
+  },
+  controlInput: {
+    padding: '7px 10px',
+    borderRadius: 7,
+    border: '1.5px solid #E2E8F0',
+    fontSize: 13,
+    background: '#FFFFFF',
+    fontFamily: 'inherit',
+    color: '#0F172A',
+    outline: 'none',
+  },
+  btnExecutar: {
+    padding: '10px 22px',
+    background: '#2563EB',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    fontWeight: 600,
+    fontSize: 14,
+    letterSpacing: '0.01em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    transition: 'background 150ms ease',
+  },
+  miniSpinner: {
+    width: 15,
+    height: 15,
+    borderRadius: '50%',
+    border: '2px solid rgba(255,255,255,0.3)',
+    borderTopColor: '#fff',
+    animation: 'spin 0.8s linear infinite',
+    flexShrink: 0,
+    display: 'inline-block',
+  },
+  alertWarning: {
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 8,
+    padding: '14px 16px',
+    marginTop: 14,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    fontSize: 13,
+    color: '#92400E',
+  },
+  alertInfo: {
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    borderRadius: 8,
+    padding: '14px 16px',
+    marginTop: 14,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+  },
+  alertDanger: {
+    background: '#FEF2F2',
+    color: '#DC2626',
+    border: '1px solid #FECACA',
+    borderRadius: 8,
+    padding: '10px 14px',
+    marginTop: 12,
+    fontSize: 13,
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+  },
+  statCard: {
+    background: '#FFFFFF',
+    borderLeft: '4px solid #E2E8F0',
+    borderRadius: 8,
+    padding: '14px 16px',
+    border: '1px solid #E2E8F0',
+    borderLeftWidth: 4,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginBottom: 6,
+    fontWeight: 500,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  statNum: {
+    fontSize: 26,
+    fontWeight: 700,
+    color: '#0F172A',
+    lineHeight: 1,
+  },
+  btnExportar: {
+    padding: '9px 20px',
+    background: '#059669',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    fontWeight: 600,
+    fontSize: 13,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    transition: 'background 150ms ease',
+  },
+};
