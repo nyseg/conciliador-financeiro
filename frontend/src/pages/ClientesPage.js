@@ -50,7 +50,7 @@ export default function ClientesPage() {
       <header style={s.header}>
         <div style={s.headerLeft}>
           <span style={s.headerIcon}>💼</span>
-          <span style={s.headerLogo}>Concil</span>
+          <span style={s.headerLogo}>Fincil</span>
         </div>
         <div style={s.headerRight}>
           <span style={s.headerUser}>

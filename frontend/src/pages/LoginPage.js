@@ -48,9 +48,9 @@ export default function LoginPage() {
           <div style={s.brandMark}>
             <span style={s.brandIcon}>💼</span>
           </div>
-          <div style={s.sideTitle}>Conciliador<br />Financeiro</div>
+          <div style={s.sideTitle}>Fincil</div>
           <div style={s.sideSubtitle}>
-            Conciliação automática de cartões para escritórios BPO
+            Conciliação financeira automática para escritórios BPO
           </div>
           <div style={s.sideFeatures}>
             <div style={s.featureItem}>
@@ -74,16 +74,16 @@ export default function LoginPage() {
         {/* Logo mobile (visível só em telas pequenas via CSS) */}
         <div style={s.mobileLogo} className="login-mobile-logo">
           <span style={{ fontSize: 24 }}>💼</span>
-          <span style={s.mobileLogoText}>Concil</span>
+          <span style={s.mobileLogoText}>Fincil</span>
         </div>
 
         <div style={s.card}>
           <div style={s.logoRow}>
             <span style={s.logoIcon}>💼</span>
-            <span style={s.logoName}>Concil</span>
+            <span style={s.logoName}>Fincil</span>
           </div>
           <h1 style={s.title}>Entrar na conta</h1>
-          <p style={s.tagline}>Conciliação financeira para BPO</p>
+          <p style={s.tagline}>Finance + Reconcile — BPO Financeiro</p>
 
           <form onSubmit={handleSubmit} style={{ marginTop: 28 }}>
             <div style={s.fieldGroup}>

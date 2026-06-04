@@ -100,7 +100,7 @@ export default function CadastroPage() {
           <div style={s.brandMark}>
             <span style={{ fontSize: 26 }}>💼</span>
           </div>
-          <div style={s.sideTitle}>Concil</div>
+          <div style={s.sideTitle}>Fincil</div>
           <div style={s.sideSubtitle}>
             Crie sua conta e comece a conciliar os dados dos seus clientes de forma automática.
           </div>
@@ -117,7 +117,7 @@ export default function CadastroPage() {
         <div style={s.card}>
           <div style={s.logoRow}>
             <span style={{ fontSize: 22 }}>💼</span>
-            <span style={s.logoName}>Concil</span>
+            <span style={s.logoName}>Fincil</span>
           </div>
           <h1 style={s.title}>Criar conta</h1>
           <p style={s.tagline}>Preencha os dados abaixo para começar</p>
