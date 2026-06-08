@@ -8,15 +8,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Analista
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
-if not SECRET_KEY:
-    import warnings
-    warnings.warn(
-        "JWT_SECRET_KEY nao configurada! Defina uma chave segura em producao (variavel de ambiente).",
-        RuntimeWarning,
-        stacklevel=2,
-    )
-    SECRET_KEY = "dev-secret-inseguro-nao-usar-em-producao"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production")
 ALGORITHM    = "HS256"
 EXPIRE_HOURS = 8
 
