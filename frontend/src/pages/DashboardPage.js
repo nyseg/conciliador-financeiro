@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
-import { LayoutDashboard, Trash2, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
-import { listarHistorico, removerEntrada, limparHistorico } from '../utils/historico';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, TrendingUp, TrendingDown, RefreshCw, Users, ArrowLeft } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { listarClientes, listarConciliacoes } from '../api';
 
 function TaxaBar({ taxa }) {
   const cor = taxa >= 80 ? '#1D9E75' : taxa >= 50 ? '#BA7517' : '#E24B4A';
@@ -28,145 +30,327 @@ function formatarPeriodo(periodo) {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
+  const { analista } = useAuth();
+
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [clientes, setClientes] = useState([]);
   const [historico, setHistorico] = useState([]);
 
-  useEffect(() => {
-    setHistorico(listarHistorico());
+  const carregarDados = useCallback(async () => {
+    setCarregando(true);
+    setErro('');
+    try {
+      const lista = await listarClientes();
+      setClientes(lista);
+
+      const todas = [];
+      await Promise.all(lista.map(async (c) => {
+        try {
+          const concs = await listarConciliacoes(c.id);
+          concs.forEach(h => todas.push({
+            ...h,
+            cliente_nome: c.nome_fantasia || c.razao_social,
+            cliente_id: c.id,
+          }));
+        } catch {
+          // cliente sem conciliações ou erro isolado — continua
+        }
+      }));
+
+      todas.sort((a, b) => new Date(b.data_execucao) - new Date(a.data_execucao));
+      setHistorico(todas);
+    } catch {
+      setErro('Não foi possível carregar os dados. Verifique sua conexão.');
+    } finally {
+      setCarregando(false);
+    }
   }, []);
 
-  function handleRemover(id) {
-    removerEntrada(id);
-    setHistorico(listarHistorico());
-  }
+  useEffect(() => { carregarDados(); }, [carregarDados]);
 
-  function handleLimpar() {
-    if (window.confirm('Apagar todo o histórico de conciliações?')) {
-      limparHistorico();
-      setHistorico([]);
-    }
-  }
-
-  // Métricas agregadas
   const total = historico.length;
   const taxaMedia = total === 0 ? 0 : Math.round(
     historico.reduce((acc, h) => {
-      const r = h.resumo || {};
-      const t = r.total_itens || 0;
-      const c = r.conciliados || 0;
+      const t = h.total_itens || 0;
+      const c = h.conciliados || 0;
       return acc + (t > 0 ? (c / t) * 100 : 0);
     }, 0) / total
   );
-  const ultima = historico[0];
-
-  // Totais por tipo
   const qtdDespesas = historico.filter(h => h.tipo === 'despesas').length;
   const qtdReceitas = historico.filter(h => h.tipo === 'receitas').length;
+  const ultima = historico[0];
+
+  const corTaxa = taxaMedia >= 80 ? '#1D9E75' : taxaMedia >= 50 ? '#BA7517' : '#E24B4A';
 
   return (
-    <div>
-      <div className="resp-dash-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <LayoutDashboard size={17} /> Dashboard
-          </h2>
-          <p style={{ fontSize: 13, color: '#666' }}>Histórico de todas as conciliações realizadas neste navegador</p>
+    <div style={s.root}>
+
+      {/* Header */}
+      <header style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={s.headerIcon}>💼</span>
+          <span style={s.headerLogo}>Fincil</span>
         </div>
-        {total > 0 && (
-          <button onClick={handleLimpar}
-            style={{ fontSize: 12, color: '#A32D2D', background: '#FCEBEB', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Trash2 size={13} /> Limpar tudo
+        <div style={s.headerRight}>
+          <span style={s.headerUser}>{analista?.nome}</span>
+          <button
+            onClick={() => navigate('/clientes')}
+            style={s.btnBack}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+          >
+            <ArrowLeft size={14} /> Clientes
           </button>
-        )}
-      </div>
+        </div>
+      </header>
 
-      {/* Cards resumo */}
-      <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-        {[
-          { label: 'Total de execuções', value: total, color: '#378ADD', icon: RefreshCw },
-          { label: 'Taxa média conciliada', value: `${taxaMedia}%`, color: taxaMedia >= 80 ? '#1D9E75' : taxaMedia >= 50 ? '#BA7517' : '#E24B4A', icon: null },
-          { label: 'Despesas', value: qtdDespesas, color: '#E24B4A', icon: TrendingDown },
-          { label: 'Receitas', value: qtdReceitas, color: '#1D9E75', icon: TrendingUp },
-        ].map(({ label, value, color, icon: Icon }) => (
-          <div key={label} style={{ background: '#F7F7FB', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-              {Icon && <Icon size={12} />} {label}
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
+      <main style={s.main}>
+
+        {/* Título */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={s.pageTitle}>
+            <LayoutDashboard size={20} style={{ verticalAlign: 'middle', marginRight: 8, color: '#2563EB' }} />
+            Dashboard
+          </h1>
+          <p style={s.pageSubtitle}>Visão consolidada de todos os clientes e conciliações</p>
+        </div>
+
+        {carregando ? (
+          <div style={s.emptyState}>
+            <div style={{ fontSize: 13, color: '#94A3B8' }}>Carregando dados...</div>
           </div>
-        ))}
-      </div>
+        ) : erro ? (
+          <div style={s.alertDanger}>{erro}</div>
+        ) : (
+          <>
+            {/* Cards de métricas */}
+            <div style={s.metricsGrid}>
+              {[
+                { label: 'Total de execuções', value: total,          color: '#378ADD', Icon: RefreshCw  },
+                { label: 'Taxa média conciliada', value: `${taxaMedia}%`, color: corTaxa, Icon: null    },
+                { label: 'Clientes',             value: clientes.length, color: '#7C3AED', Icon: Users  },
+                { label: 'Despesas',             value: qtdDespesas,  color: '#E24B4A', Icon: TrendingDown },
+                { label: 'Receitas',             value: qtdReceitas,  color: '#1D9E75', Icon: TrendingUp   },
+              ].map(({ label, value, color, Icon }) => (
+                <div key={label} style={s.metricCard}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {Icon && <Icon size={12} />} {label}
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 700, color }}>{value}</div>
+                </div>
+              ))}
+            </div>
 
-      {/* Última execução destaque */}
-      {ultima && (
-        <div style={{ background: '#F0F7FF', border: '1px solid #BDD4F7', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
-          <span style={{ fontWeight: 600, color: '#1A5FA8' }}>Última conciliação: </span>
-          <span style={{ color: '#333' }}>
-            {ultima.tipo === 'despesas' ? '📉 Despesas' : '📈 Receitas'} —{' '}
-            {ultima.resumo?.conciliados || 0}/{ultima.resumo?.total_itens || 0} itens conciliados
-            {ultima.periodo ? ` — ${formatarPeriodo(ultima.periodo)}` : ''} —{' '}
-            {formatarData(ultima.data_execucao)}
-          </span>
-        </div>
-      )}
+            {/* Última execução destaque */}
+            {ultima && (
+              <div style={s.lastExec}>
+                <span style={{ fontWeight: 600, color: '#1A5FA8' }}>Última conciliação: </span>
+                <span style={{ color: '#333' }}>
+                  <span
+                    style={{ color: '#2563EB', cursor: 'pointer', fontWeight: 500 }}
+                    onClick={() => navigate(`/clientes/${ultima.cliente_id}`)}
+                  >
+                    {ultima.cliente_nome}
+                  </span>
+                  {' — '}{ultima.tipo === 'despesas' ? 'Despesas' : 'Receitas'}
+                  {' — '}{ultima.conciliados}/{ultima.total_itens} itens conciliados
+                  {ultima.periodo ? ` — ${formatarPeriodo(ultima.periodo)}` : ''}
+                  {' — '}{formatarData(ultima.data_execucao)}
+                </span>
+              </div>
+            )}
 
-      {/* Tabela histórico */}
-      {total === 0 ? (
-        <div style={{ textAlign: 'center', color: '#aaa', padding: '48px 0' }}>
-          <LayoutDashboard size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
-          <div style={{ fontSize: 14 }}>Nenhuma conciliação realizada ainda.</div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>Execute uma conciliação nas abas Despesas ou Receitas para registrar aqui.</div>
-        </div>
-      ) : (
-        <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #eee' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr>
-                {['Data/Hora', 'Tipo', 'Período', 'Total', 'Conciliados', 'Taxa', 'Arquivos', ''].map(c => (
-                  <th key={c} style={{ padding: '8px 12px', background: '#F5F5FA', fontWeight: 600, fontSize: 11, color: '#555', textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {historico.map((h, i) => {
-                const r = h.resumo || {};
-                const total_itens = r.total_itens || 0;
-                const conciliados = r.conciliados || 0;
-                const taxa = total_itens > 0 ? Math.round((conciliados / total_itens) * 100) : 0;
-                return (
-                  <tr key={h.id} style={{ background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
-                    <td style={{ padding: '7px 12px', whiteSpace: 'nowrap', color: '#555' }}>{formatarData(h.data_execucao)}</td>
-                    <td style={{ padding: '7px 12px' }}>
-                      <span style={{
-                        background: h.tipo === 'despesas' ? '#FCEBEB' : '#E1F5EE',
-                        color: h.tipo === 'despesas' ? '#A32D2D' : '#0F6E56',
-                        borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 700
-                      }}>
-                        {h.tipo === 'despesas' ? '📉 Despesas' : '📈 Receitas'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '7px 12px', color: '#555' }}>{formatarPeriodo(h.periodo)}</td>
-                    <td style={{ padding: '7px 12px', fontWeight: 600 }}>{total_itens}</td>
-                    <td style={{ padding: '7px 12px', fontWeight: 600, color: '#1D9E75' }}>{conciliados}</td>
-                    <td style={{ padding: '7px 12px' }}><TaxaBar taxa={taxa} /></td>
-                    <td style={{ padding: '7px 12px', color: '#888', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {Object.values(h.arquivos || {}).join(', ') || '—'}
-                    </td>
-                    <td style={{ padding: '7px 12px' }}>
-                      <button onClick={() => handleRemover(h.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', padding: 2 }}
-                        title="Remover do histórico">
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            {/* Tabela histórico */}
+            {total === 0 ? (
+              <div style={{ ...s.emptyState, marginTop: 0 }}>
+                <LayoutDashboard size={40} style={{ marginBottom: 12, opacity: 0.3, color: '#94A3B8' }} />
+                <div style={{ fontSize: 14, color: '#94A3B8' }}>Nenhuma conciliação realizada ainda.</div>
+                <div style={{ fontSize: 12, marginTop: 4, color: '#CBD5E1' }}>
+                  Execute uma conciliação na página de cada cliente para registrar aqui.
+                </div>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #E2E8F0', background: '#fff' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['Data/Hora', 'Cliente', 'Tipo', 'Período', 'Total', 'Conciliados', 'Taxa'].map(col => (
+                        <th key={col} style={s.th}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historico.map((h, i) => {
+                      const total_itens = h.total_itens || 0;
+                      const conciliados = h.conciliados || 0;
+                      const taxa = total_itens > 0 ? Math.round((conciliados / total_itens) * 100) : 0;
+                      return (
+                        <tr
+                          key={h.id}
+                          style={{ background: i % 2 === 0 ? '#fff' : '#FAFAFA', cursor: 'pointer', transition: 'background 100ms' }}
+                          onClick={() => navigate(`/clientes/${h.cliente_id}`)}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#EFF6FF'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#FAFAFA'; }}
+                        >
+                          <td style={s.td}>{formatarData(h.data_execucao)}</td>
+                          <td style={{ ...s.td, fontWeight: 500, color: '#2563EB' }}>{h.cliente_nome}</td>
+                          <td style={s.td}>
+                            <span style={{
+                              background: h.tipo === 'despesas' ? '#FCEBEB' : '#E1F5EE',
+                              color: h.tipo === 'despesas' ? '#A32D2D' : '#0F6E56',
+                              borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 700,
+                            }}>
+                              {h.tipo === 'despesas' ? 'Despesas' : 'Receitas'}
+                            </span>
+                          </td>
+                          <td style={s.td}>{formatarPeriodo(h.periodo)}</td>
+                          <td style={{ ...s.td, fontWeight: 600 }}>{total_itens}</td>
+                          <td style={{ ...s.td, fontWeight: 600, color: '#1D9E75' }}>{conciliados}</td>
+                          <td style={s.td}><TaxaBar taxa={taxa} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </main>
     </div>
   );
 }
+
+const s = {
+  root: {
+    minHeight: '100vh',
+    background: '#F8FAFC',
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  header: {
+    background: '#FFFFFF',
+    borderBottom: '1px solid #E2E8F0',
+    padding: '0 32px',
+    height: 58,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIcon: { fontSize: 20 },
+  headerLogo: {
+    fontSize: 17,
+    fontWeight: 700,
+    color: '#2563EB',
+    letterSpacing: '-0.3px',
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+  },
+  headerUser: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: 500,
+  },
+  btnBack: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    color: '#475569',
+    borderRadius: 8,
+    padding: '7px 14px',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    transition: 'all 150ms ease',
+  },
+  main: {
+    maxWidth: 1100,
+    margin: '0 auto',
+    padding: '32px 24px',
+  },
+  pageTitle: {
+    margin: 0,
+    fontSize: 24,
+    fontWeight: 700,
+    color: '#0F172A',
+    letterSpacing: '-0.4px',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  pageSubtitle: {
+    margin: '4px 0 0',
+    fontSize: 14,
+    color: '#94A3B8',
+  },
+  metricsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+    gap: 14,
+    marginBottom: 24,
+  },
+  metricCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: 10,
+    padding: '16px 18px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  },
+  lastExec: {
+    background: '#F0F7FF',
+    border: '1px solid #BDD4F7',
+    borderRadius: 10,
+    padding: '12px 16px',
+    marginBottom: 20,
+    fontSize: 13,
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '60px 24px',
+    background: '#FFFFFF',
+    borderRadius: 12,
+    border: '1.5px dashed #E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 4,
+  },
+  alertDanger: {
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    color: '#DC2626',
+    borderRadius: 10,
+    padding: '14px 18px',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  th: {
+    padding: '10px 14px',
+    background: '#F5F5FA',
+    fontWeight: 600,
+    fontSize: 11,
+    color: '#555',
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+    borderBottom: '1px solid #E2E8F0',
+  },
+  td: {
+    padding: '8px 14px',
+    whiteSpace: 'nowrap',
+    color: '#555',
+    borderBottom: '1px solid #F1F5F9',
+  },
+};

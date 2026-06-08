@@ -1,5 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 
+function calcularSaude(ult) {
+  if (!ult) return { cor: '#94A3B8', label: 'Aguardando', bg: '#F1F5F9' };
+  const total = (ult.conciliados || 0) + (ult.pendentes || 0);
+  const taxa = total > 0 ? (ult.conciliados / total) * 100 : 0;
+  if (taxa >= 90) return { cor: '#059669', label: 'Ótimo',      bg: '#ECFDF5' };
+  if (taxa >= 70) return { cor: '#D97706', label: 'Atenção',    bg: '#FFFBEB' };
+  return             { cor: '#DC2626', label: 'Pendências', bg: '#FEF2F2' };
+}
+
 function formatarData(iso) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -35,19 +44,18 @@ export default function CardCliente({ cliente }) {
   const navigate = useNavigate();
   const ult = cliente.ultima_conciliacao;
   const nomeExibido = cliente.nome_fantasia || cliente.razao_social;
+  const saude = calcularSaude(ult);
 
   function handleMouseEnter(e) {
-    e.currentTarget.style.borderColor = '#2563EB';
     e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)';
   }
   function handleMouseLeave(e) {
-    e.currentTarget.style.borderColor = '#E2E8F0';
     e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)';
   }
 
   return (
     <div
-      style={s.card}
+      style={{ ...s.card, borderLeft: `4px solid ${saude.cor}` }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -63,9 +71,14 @@ export default function CardCliente({ cliente }) {
             <div style={s.cardCnpj}>CNPJ: {cliente.cnpj}</div>
           )}
         </div>
-        {cliente.erp_utilizado && (
-          <span style={s.erpBadge}>{cliente.erp_utilizado}</span>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          {cliente.erp_utilizado && (
+            <span style={s.erpBadge}>{cliente.erp_utilizado}</span>
+          )}
+          <span style={{ background: saude.bg, color: saude.cor, borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {saude.label}
+          </span>
+        </div>
       </div>
 
       {/* Divider */}

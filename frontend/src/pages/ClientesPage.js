@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { LogOut, Plus, Search, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, Plus, Search, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import CardCliente from '../components/CardCliente';
 import ModalCliente from '../components/ModalCliente';
@@ -7,6 +8,7 @@ import { listarClientes, criarCliente } from '../api';
 
 export default function ClientesPage() {
   const { analista, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [clientes, setClientes]       = useState([]);
   const [filtro, setFiltro]           = useState('');
@@ -56,6 +58,16 @@ export default function ClientesPage() {
           <span style={s.headerUser}>
             {analista?.nome}
           </span>
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={s.btnIcon}
+            title="Ver Dashboard"
+            onMouseEnter={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
+          >
+            <LayoutDashboard size={15} />
+            <span style={{ fontSize: 13, fontWeight: 500 }}>Dashboard</span>
+          </button>
           <button
             onClick={logout}
             style={s.btnLogout}

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import CadastroPage from './pages/CadastroPage';
 import ClientesPage from './pages/ClientesPage';
 import ClientePage from './pages/ClientePage';
+import DashboardPage from './pages/DashboardPage';
 
 function RoteiroProtegido({ children }) {
   const { analista, carregando } = useAuth();
@@ -47,6 +48,14 @@ export default function App() {
             element={
               <RoteiroProtegido>
                 <ClientePage />
+              </RoteiroProtegido>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <RoteiroProtegido>
+                <DashboardPage />
               </RoteiroProtegido>
             }
           />

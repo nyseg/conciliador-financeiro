@@ -18,19 +18,18 @@ function cnpjSoDigitos(cnpj) {
 function validarCnpj(cnpj) {
   const d = cnpjSoDigitos(cnpj);
   if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false;
-  const calc = (s, n) => {
-    let soma = 0, pos = n - 7;
-    for (let i = s.length - 1; i >= 0; i--) {
-      soma += parseInt(s[i]) * pos--;
-      if (pos < 2) pos = 9;
-    }
-    const r = soma % 11;
-    return r < 2 ? 0 : 11 - r;
-  };
-  return (
-    calc(d.slice(0, 12), 5) === parseInt(d[12]) &&
-    calc(d.slice(0, 13), 6) === parseInt(d[13])
-  );
+
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let s1 = 0;
+  for (let i = 0; i < 12; i++) s1 += Number(d[i]) * w1[i];
+  const r1 = s1 % 11;
+  if (Number(d[12]) !== (r1 < 2 ? 0 : 11 - r1)) return false;
+
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let s2 = 0;
+  for (let i = 0; i < 13; i++) s2 += Number(d[i]) * w2[i];
+  const r2 = s2 % 11;
+  return Number(d[13]) === (r2 < 2 ? 0 : 11 - r2);
 }
 
 // ── Busca CNPJ na BrasilAPI ──────────────────────────────────────────────────
