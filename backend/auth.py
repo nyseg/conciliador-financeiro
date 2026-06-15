@@ -8,7 +8,21 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Analista
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-secret-change-in-production")
+# Fallback mantido IDÊNTICO ao histórico de propósito: trocar essa string
+# invalida todos os tokens JWT já emitidos e desloga os usuários ativos
+# (ver commit 29ae427). Em produção o Render injeta JWT_SECRET_KEY e o
+# fallback nunca é usado — ele só vale em dev local.
+_FALLBACK_SECRET = "dev-secret-change-in-production"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or _FALLBACK_SECRET
+
+if not os.environ.get("JWT_SECRET_KEY"):
+    import warnings
+    warnings.warn(
+        "JWT_SECRET_KEY não configurada — usando fallback inseguro. "
+        "Defina a variável de ambiente em produção.",
+        RuntimeWarning,
+    )
+
 ALGORITHM    = "HS256"
 EXPIRE_HOURS = 8
 
