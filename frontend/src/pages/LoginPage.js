@@ -40,46 +40,37 @@ export default function LoginPage() {
 
   const retryAtivo = loading && tentativaRetry > 0;
 
+  function focar(e) { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px rgba(26,68,128,0.12)'; }
+  function desfocar(e) { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }
+
   return (
     <div style={s.root}>
-      {/* Painel lateral escuro — some em mobile via CSS */}
+      {/* Painel lateral navy — some em mobile via CSS */}
       <div style={s.sidePanel} className="login-side-panel">
         <div style={s.sidePanelContent}>
-          <div style={s.brandMark}>
-            <span style={s.brandIcon}>💼</span>
-          </div>
+          <div style={s.brandMark}>F</div>
           <div style={s.sideTitle}>Fincil</div>
           <div style={s.sideSubtitle}>
             Conciliação financeira automática para escritórios BPO
           </div>
           <div style={s.sideFeatures}>
-            <div style={s.featureItem}>
-              <span style={s.featureDot} />
-              Despesas vs ERP — Contas a Pagar
-            </div>
-            <div style={s.featureItem}>
-              <span style={s.featureDot} />
-              Receitas vs Operadora vs Banco
-            </div>
-            <div style={s.featureItem}>
-              <span style={s.featureDot} />
-              Exportação Excel completa
-            </div>
+            <div style={s.featureItem}><span style={s.featureDot} />Despesas vs ERP — Contas a Pagar</div>
+            <div style={s.featureItem}><span style={s.featureDot} />Receitas vs Operadora vs Banco</div>
+            <div style={s.featureItem}><span style={s.featureDot} />Exportação Excel completa</div>
           </div>
         </div>
       </div>
 
       {/* Área do formulário */}
       <div style={s.formArea}>
-        {/* Logo mobile (visível só em telas pequenas via CSS) */}
         <div style={s.mobileLogo} className="login-mobile-logo">
-          <span style={{ fontSize: 24 }}>💼</span>
+          <span style={s.mobileMark}>F</span>
           <span style={s.mobileLogoText}>Fincil</span>
         </div>
 
         <div style={s.card}>
           <div style={s.logoRow}>
-            <span style={s.logoIcon}>💼</span>
+            <span style={s.logoMark}>F</span>
             <span style={s.logoName}>Fincil</span>
           </div>
           <h1 style={s.title}>Entrar na conta</h1>
@@ -88,30 +79,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} style={{ marginTop: 28 }}>
             <div style={s.fieldGroup}>
               <label style={s.label}>E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-                style={s.input}
-                onFocus={e => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
-                onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                required placeholder="seu@email.com" style={s.input} onFocus={focar} onBlur={desfocar} />
             </div>
 
             <div style={s.fieldGroup}>
               <label style={s.label}>Senha</label>
-              <input
-                type="password"
-                value={senha}
-                onChange={e => setSenha(e.target.value)}
-                required
-                placeholder="••••••••"
-                style={s.input}
-                onFocus={e => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
-                onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; }}
-              />
+              <input type="password" value={senha} onChange={e => setSenha(e.target.value)}
+                required placeholder="••••••••" style={s.input} onFocus={focar} onBlur={desfocar} />
             </div>
 
             {retryAtivo && (
@@ -121,20 +96,18 @@ export default function LoginPage() {
               </div>
             )}
 
-            {erro && (
-              <div style={s.alertDanger}>{erro}</div>
-            )}
+            {erro && <div style={s.alertDanger}>{erro}</div>}
 
             <button
               type="submit"
               disabled={loading}
               style={{
                 ...s.btnPrimary,
-                background: loading ? '#94A3B8' : '#2563EB',
+                background: loading ? '#A9B6C8' : 'var(--accent)',
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1D4ED8'; }}
-              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#2563EB'; }}
+              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--accent-l)'; }}
+              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
             >
               {loading
                 ? <><span style={s.spinner} /> {retryAtivo ? 'Reconectando…' : 'Entrando…'}</>
@@ -159,207 +132,68 @@ export default function LoginPage() {
   );
 }
 
+const markBase = {
+  background: 'linear-gradient(135deg, #2558A8, #5A9EFF)',
+  color: '#fff', fontFamily: 'var(--font-serif)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+};
+
 const s = {
-  root: {
-    minHeight: '100vh',
-    display: 'flex',
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif',
-    background: '#F8FAFC',
-  },
+  root: { minHeight: '100vh', display: 'flex', fontFamily: 'var(--font-body)', background: 'var(--bg)' },
   sidePanel: {
-    width: '32%',
-    minWidth: 260,
-    background: '#0F172A',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '48px 40px',
-    flexShrink: 0,
+    width: '32%', minWidth: 260, background: 'var(--primary-d)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '48px 40px', flexShrink: 0,
   },
-  sidePanelContent: {
-    maxWidth: 280,
-  },
-  brandMark: {
-    width: 52,
-    height: 52,
-    background: 'rgba(37,99,235,0.2)',
-    borderRadius: 14,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    fontSize: 26,
-  },
-  brandIcon: {},
+  sidePanelContent: { maxWidth: 280 },
+  brandMark: { ...markBase, width: 52, height: 52, borderRadius: 14, fontSize: 26, marginBottom: 24 },
   sideTitle: {
-    fontSize: 28,
-    fontWeight: 700,
-    color: '#F8FAFC',
-    lineHeight: 1.25,
-    marginBottom: 14,
-    letterSpacing: '-0.5px',
+    fontFamily: 'var(--font-serif)', fontSize: 34, color: '#fff',
+    lineHeight: 1.1, marginBottom: 14,
   },
-  sideSubtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 1.6,
-    marginBottom: 32,
-  },
-  sideFeatures: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
-  featureItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    fontSize: 13,
-    color: '#CBD5E1',
-  },
-  featureDot: {
-    display: 'inline-block',
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: '#2563EB',
-    flexShrink: 0,
-  },
-  formArea: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '40px 24px',
-  },
-  mobileLogo: {
-    display: 'none',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 32,
-  },
-  mobileLogoText: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: '#2563EB',
-    letterSpacing: '-0.3px',
-  },
+  sideSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: 32 },
+  sideFeatures: { display: 'flex', flexDirection: 'column', gap: 12 },
+  featureItem: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'rgba(255,255,255,0.8)' },
+  featureDot: { display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 },
+  formArea: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' },
+  mobileLogo: { display: 'none', alignItems: 'center', gap: 10, marginBottom: 32 },
+  mobileMark: { ...markBase, width: 34, height: 34, borderRadius: 9, fontSize: 18 },
+  mobileLogoText: { fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--primary)' },
   card: {
-    background: '#FFFFFF',
-    borderRadius: 16,
-    padding: '40px 44px',
-    width: '100%',
-    maxWidth: 420,
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
-    border: '1px solid #E2E8F0',
+    background: '#FFFFFF', borderRadius: 16, padding: '40px 44px', width: '100%', maxWidth: 420,
+    boxShadow: '0 6px 24px rgba(11,31,58,0.10)', border: '1px solid var(--border)',
   },
-  logoRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  logoIcon: {
-    fontSize: 22,
-  },
-  logoName: {
-    fontSize: 18,
-    fontWeight: 700,
-    color: '#2563EB',
-    letterSpacing: '-0.3px',
-  },
-  title: {
-    margin: '0 0 4px',
-    fontSize: 24,
-    fontWeight: 700,
-    color: '#0F172A',
-    letterSpacing: '-0.4px',
-  },
-  tagline: {
-    margin: 0,
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  fieldGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    display: 'block',
-    fontSize: 13,
-    fontWeight: 500,
-    color: '#475569',
-    marginBottom: 6,
-  },
+  logoRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 },
+  logoMark: { ...markBase, width: 32, height: 32, borderRadius: 8, fontSize: 17 },
+  logoName: { fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--primary)' },
+  title: { margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.4px' },
+  tagline: { margin: 0, fontSize: 13.5, color: 'var(--text-3)' },
+  fieldGroup: { marginBottom: 16 },
+  label: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-2)', marginBottom: 6 },
   input: {
-    width: '100%',
-    border: '1.5px solid #E2E8F0',
-    borderRadius: 8,
-    padding: '10px 12px',
-    fontSize: 14,
-    color: '#0F172A',
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-    background: '#FFFFFF',
-    transition: 'border-color 150ms ease, box-shadow 150ms ease',
+    width: '100%', border: '1.5px solid var(--border)', borderRadius: 8, padding: '10px 12px',
+    fontSize: 14, color: 'var(--text-1)', outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit', background: '#FFFFFF', transition: 'border-color 150ms ease, box-shadow 150ms ease',
   },
   alertWarning: {
-    background: '#FFFBEB',
-    border: '1px solid #FDE68A',
-    borderRadius: 8,
-    padding: '10px 14px',
-    fontSize: 13,
-    color: '#92400E',
-    marginBottom: 16,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
+    background: 'var(--warn-bg)', border: '1px solid #F5D99A', borderRadius: 8,
+    padding: '10px 14px', fontSize: 13, color: 'var(--warn)', marginBottom: 16,
+    display: 'flex', alignItems: 'center', gap: 8,
   },
   alertDanger: {
-    background: '#FEF2F2',
-    border: '1px solid #FECACA',
-    color: '#DC2626',
-    borderRadius: 8,
-    padding: '10px 14px',
-    fontSize: 13,
-    marginBottom: 16,
+    background: 'var(--err-bg)', border: '1px solid #F5C6C6', color: 'var(--err)',
+    borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
   },
   btnPrimary: {
-    width: '100%',
-    background: '#2563EB',
-    color: '#FFFFFF',
-    border: 'none',
-    borderRadius: 8,
-    padding: '11px 20px',
-    fontSize: 15,
-    fontWeight: 600,
-    letterSpacing: '0.01em',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    width: '100%', background: 'var(--accent)', color: '#FFFFFF', border: 'none',
+    borderRadius: 8, padding: '11px 20px', fontSize: 15, fontWeight: 600,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     transition: 'background 150ms ease',
   },
   spinner: {
-    display: 'inline-block',
-    width: 14,
-    height: 14,
-    border: '2.5px solid rgba(255,255,255,0.35)',
-    borderTopColor: '#fff',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
-    flexShrink: 0,
+    display: 'inline-block', width: 14, height: 14, border: '2.5px solid rgba(255,255,255,0.35)',
+    borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
   },
-  footerLink: {
-    marginTop: 24,
-    textAlign: 'center',
-    fontSize: 13,
-    color: '#94A3B8',
-  },
-  link: {
-    color: '#2563EB',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
+  footerLink: { marginTop: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-3)' },
+  link: { color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' },
 };

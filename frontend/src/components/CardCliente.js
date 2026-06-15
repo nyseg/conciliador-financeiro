@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 
 function calcularSaude(ult) {
-  if (!ult) return { cor: '#94A3B8', label: 'Aguardando', bg: '#F1F5F9' };
+  if (!ult) return { cor: '#8AA0BC', label: 'Aguardando', bg: '#EAF1FA' };
   const total = (ult.conciliados || 0) + (ult.pendentes || 0);
   const taxa = total > 0 ? (ult.conciliados / total) * 100 : 0;
-  if (taxa >= 90) return { cor: '#059669', label: 'Ótimo',      bg: '#ECFDF5' };
-  if (taxa >= 70) return { cor: '#D97706', label: 'Atenção',    bg: '#FFFBEB' };
-  return             { cor: '#DC2626', label: 'Pendências', bg: '#FEF2F2' };
+  if (taxa >= 90) return { cor: '#0A7B5C', label: 'Ótimo',      bg: '#E5F5EF' };
+  if (taxa >= 70) return { cor: '#8A5A00', label: 'Atenção',    bg: '#FEF3DC' };
+  return             { cor: '#B83232', label: 'Pendências', bg: '#FDECEA' };
 }
 
 function formatarData(iso) {
@@ -23,13 +23,13 @@ function Avatar({ nome }) {
   const inicial = (nome || '?')[0].toUpperCase();
   return (
     <div style={{
-      width: 40,
-      height: 40,
-      borderRadius: '50%',
-      background: '#EFF6FF',
-      color: '#2563EB',
-      fontSize: 16,
-      fontWeight: 700,
+      width: 42,
+      height: 42,
+      borderRadius: 11,
+      background: 'var(--ice)',
+      color: 'var(--primary)',
+      fontFamily: 'var(--font-serif)',
+      fontSize: 18,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -47,10 +47,12 @@ export default function CardCliente({ cliente }) {
   const saude = calcularSaude(ult);
 
   function handleMouseEnter(e) {
-    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)';
+    e.currentTarget.style.boxShadow = '0 6px 24px rgba(11,31,58,0.10)';
+    e.currentTarget.style.borderColor = 'var(--primary-l)';
   }
   function handleMouseLeave(e) {
-    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)';
+    e.currentTarget.style.boxShadow = '0 1px 3px rgba(11,31,58,0.08), 0 1px 2px rgba(11,31,58,0.05)';
+    e.currentTarget.style.borderColor = 'var(--border)';
   }
 
   return (
@@ -75,7 +77,7 @@ export default function CardCliente({ cliente }) {
           {cliente.erp_utilizado && (
             <span style={s.erpBadge}>{cliente.erp_utilizado}</span>
           )}
-          <span style={{ background: saude.bg, color: saude.cor, borderRadius: 20, padding: '3px 9px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+          <span style={{ background: saude.bg, color: saude.cor, borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
             {saude.label}
           </span>
         </div>
@@ -95,7 +97,7 @@ export default function CardCliente({ cliente }) {
             </div>
             <div style={s.statPendente}>
               <span style={s.statDotRed} />
-              <span style={{ ...s.statNum, color: '#DC2626' }}>{ult.pendentes}</span>
+              <span style={{ ...s.statNum, color: '#B83232' }}>{ult.pendentes}</span>
               <span style={s.statLabel}>pendentes</span>
             </div>
           </div>
@@ -114,8 +116,8 @@ export default function CardCliente({ cliente }) {
         <button
           onClick={() => navigate(`/clientes/${cliente.id}`)}
           style={s.btnEntrar}
-          onMouseEnter={e => { e.currentTarget.style.color = '#1D4ED8'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#2563EB'; }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--primary-l)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--primary)'; }}
         >
           Entrar &rarr;
         </button>
@@ -127,129 +129,47 @@ export default function CardCliente({ cliente }) {
 const s = {
   card: {
     background: '#FFFFFF',
-    border: '1px solid #E2E8F0',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '20px 22px',
     display: 'flex',
     flexDirection: 'column',
     gap: 0,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: '0 1px 3px rgba(11,31,58,0.08), 0 1px 2px rgba(11,31,58,0.05)',
     transition: 'border-color 150ms ease, box-shadow 150ms ease',
     cursor: 'default',
   },
-  cardHeader: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 16,
-  },
-  cardHeaderInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
+  cardHeader: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  cardHeaderInfo: { flex: 1, minWidth: 0 },
   cardTitle: {
-    fontWeight: 600,
-    fontSize: 15,
-    color: '#0F172A',
-    lineHeight: 1.3,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    fontWeight: 600, fontSize: 15, color: 'var(--text-1)', lineHeight: 1.3,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   cardSubtitle: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 1,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    fontSize: 12, color: 'var(--text-3)', marginTop: 1,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
-  cardCnpj: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 3,
-  },
+  cardCnpj: { fontSize: 11, color: 'var(--text-3)', marginTop: 3 },
   erpBadge: {
-    background: '#F1F5F9',
-    color: '#475569',
-    borderRadius: 20,
-    padding: '3px 10px',
-    fontSize: 11,
-    fontWeight: 500,
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-    alignSelf: 'flex-start',
+    background: 'var(--ice)', color: 'var(--text-2)', borderRadius: 100,
+    padding: '3px 10px', fontSize: 11, fontWeight: 500,
+    whiteSpace: 'nowrap', flexShrink: 0, alignSelf: 'flex-start',
   },
-  divider: {
-    borderTop: '1px solid #F1F5F9',
-    marginBottom: 14,
-  },
-  statsArea: {
-    marginBottom: 14,
-  },
-  statsRow: {
-    display: 'flex',
-    gap: 20,
-    marginBottom: 6,
-  },
-  statConciliado: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statPendente: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statDotGreen: {
-    display: 'inline-block',
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    background: '#059669',
-    flexShrink: 0,
-  },
-  statDotRed: {
-    display: 'inline-block',
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    background: '#DC2626',
-    flexShrink: 0,
-  },
-  statNum: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: '#059669',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  lastConcil: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  noConcil: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontStyle: 'italic',
-    marginBottom: 14,
-  },
-  cardFooter: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
+  divider: { borderTop: '1px solid var(--border)', marginBottom: 14 },
+  statsArea: { marginBottom: 14 },
+  statsRow: { display: 'flex', gap: 20, marginBottom: 6 },
+  statConciliado: { display: 'flex', alignItems: 'center', gap: 5 },
+  statPendente: { display: 'flex', alignItems: 'center', gap: 5 },
+  statDotGreen: { display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#0A7B5C', flexShrink: 0 },
+  statDotRed:   { display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#B83232', flexShrink: 0 },
+  statNum: { fontSize: 16, fontWeight: 700, color: '#0A7B5C' },
+  statLabel: { fontSize: 12, color: 'var(--text-3)' },
+  lastConcil: { fontSize: 11, color: 'var(--text-3)' },
+  noConcil: { fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic', marginBottom: 14 },
+  cardFooter: { display: 'flex', justifyContent: 'flex-end' },
   btnEntrar: {
-    background: 'none',
-    border: 'none',
-    color: '#2563EB',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: '4px 0',
-    transition: 'color 150ms ease',
-    letterSpacing: '0.01em',
+    background: 'none', border: 'none', color: 'var(--primary)', fontSize: 13,
+    fontWeight: 600, cursor: 'pointer', padding: '4px 0',
+    transition: 'color 150ms ease', letterSpacing: '0.01em',
   },
 };
