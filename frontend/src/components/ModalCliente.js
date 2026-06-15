@@ -129,14 +129,14 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
     }
   }
 
-  const corBordaCnpj = cnpjStatus === 'ok'      ? '#059669'
-                     : cnpjStatus === 'erro'     ? '#D97706'
-                     : cnpjStatus === 'invalido' ? '#DC2626'
-                     : '#E2E8F0';
+  const corBordaCnpj = cnpjStatus === 'ok'      ? 'var(--ok)'
+                     : cnpjStatus === 'erro'     ? 'var(--warn)'
+                     : cnpjStatus === 'invalido' ? 'var(--err)'
+                     : 'var(--border)';
 
-  const corMsgCnpj = cnpjStatus === 'ok'      ? '#059669'
-                   : cnpjStatus === 'invalido' ? '#DC2626'
-                   : '#D97706';
+  const corMsgCnpj = cnpjStatus === 'ok'      ? 'var(--ok)'
+                   : cnpjStatus === 'invalido' ? 'var(--err)'
+                   : 'var(--warn)';
 
   return (
     <div
@@ -173,8 +173,8 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
                     borderColor: corBordaCnpj,
                     paddingRight: buscandoCnpj ? 40 : 12,
                   }}
-                  onFocus={e => { if (!cnpjStatus) { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; } }}
-                  onBlur={e => { if (!cnpjStatus) { e.target.style.borderColor = '#E2E8F0'; e.target.style.boxShadow = 'none'; } }}
+                  onFocus={e => { if (!cnpjStatus) { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px rgba(26,68,128,0.12)'; } }}
+                  onBlur={e => { if (!cnpjStatus) { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; } }}
                 />
                 {buscandoCnpj && (
                   <span style={s.cnpjSpinner} />
@@ -233,11 +233,11 @@ export default function ModalCliente({ aberto, onFechar, onSalvar, clienteInicia
             disabled={loading || buscandoCnpj || cnpjStatus === 'invalido'}
             style={{
               ...s.btnSave,
-              background: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? '#94A3B8' : '#2563EB',
+              background: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? '#A9B6C8' : 'var(--accent)',
               cursor: (loading || buscandoCnpj || cnpjStatus === 'invalido') ? 'not-allowed' : 'pointer',
             }}
-            onMouseEnter={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = '#1D4ED8'; }}
-            onMouseLeave={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = '#2563EB'; }}
+            onMouseEnter={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = 'var(--accent-l)'; }}
+            onMouseLeave={e => { if (!loading && !buscandoCnpj && cnpjStatus !== 'invalido') e.currentTarget.style.background = 'var(--accent)'; }}
           >
             {buscandoCnpj ? 'Consultando CNPJ...' : loading ? 'Salvando...' : 'Salvar'}
           </button>
@@ -259,14 +259,14 @@ function Campo({ label, value, onChange, placeholder, destaque }) {
         placeholder={placeholder}
         style={{
           ...s.input,
-          borderColor: destaque && value ? '#059669' : '#E2E8F0',
-          background: destaque && value ? '#ECFDF5' : '#FFFFFF',
+          borderColor: destaque && value ? '#0A7B5C' : '#E2E8F0',
+          background: destaque && value ? '#E5F5EF' : '#FFFFFF',
           transition: 'border-color 150ms ease, background 150ms ease',
         }}
         onFocus={e => {
           if (!destaque || !value) {
-            e.target.style.borderColor = '#2563EB';
-            e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)';
+            e.target.style.borderColor = 'var(--primary)';
+            e.target.style.boxShadow = '0 0 0 3px rgba(26,68,128,0.12)';
           }
         }}
         onBlur={e => {
@@ -374,7 +374,7 @@ const s = {
     width: 16,
     height: 16,
     border: '2.5px solid #E2E8F0',
-    borderTopColor: '#2563EB',
+    borderTopColor: 'var(--primary)',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
     display: 'block',
@@ -400,7 +400,7 @@ const s = {
     transition: 'background 150ms ease',
   },
   btnSave: {
-    background: '#2563EB',
+    background: 'var(--primary)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,

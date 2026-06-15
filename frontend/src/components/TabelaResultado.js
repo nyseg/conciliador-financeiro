@@ -3,16 +3,16 @@ import { Link2, X } from 'lucide-react';
 
 // ── Badges de status ─────────────────────────────────────────────────────────
 const BADGE = {
-  ok:              { bg: '#ECFDF5', color: '#059669',  label: '✅ Conciliado' },
-  ok_parcela:      { bg: '#EFF6FF', color: '#2563EB',  label: '📋 Parcela' },
-  ok_categoria:    { bg: '#ECFDF5', color: '#059669',  label: '📦 Agrupado' },
-  ok_manual:       { bg: '#EFF6FF', color: '#2563EB',  label: '🔗 Manual' },
-  ok_data_div:     { bg: '#FFFBEB', color: '#D97706',  label: '⚠️ Data divergente' },
-  ok_encargo:      { bg: '#ECFDF5', color: '#059669',  label: '✅ Encargo ERP' },
-  ausente_erp:     { bg: '#FEF2F2', color: '#DC2626',  label: '❌ Sem ERP' },
-  ausente_fatura:  { bg: '#FFFBEB', color: '#D97706',  label: '⚠️ Sem fatura' },
-  divergencia:     { bg: '#FFFBEB', color: '#D97706',  label: '⚠️ Divergência' },
-  ausente_ambos:   { bg: '#FEF2F2', color: '#DC2626',  label: '❌ Ausente' },
+  ok:              { bg: '#E5F5EF', color: '#0A7B5C',  label: '✅ Conciliado' },
+  ok_parcela:      { bg: 'var(--ice)', color: 'var(--primary)',  label: '📋 Parcela' },
+  ok_categoria:    { bg: '#E5F5EF', color: '#0A7B5C',  label: '📦 Agrupado' },
+  ok_manual:       { bg: 'var(--ice)', color: 'var(--primary)',  label: '🔗 Manual' },
+  ok_data_div:     { bg: '#FEF3DC', color: '#8A5A00',  label: '⚠️ Data divergente' },
+  ok_encargo:      { bg: '#E5F5EF', color: '#0A7B5C',  label: '✅ Encargo ERP' },
+  ausente_erp:     { bg: '#FDECEA', color: '#B83232',  label: '❌ Sem ERP' },
+  ausente_fatura:  { bg: '#FEF3DC', color: '#8A5A00',  label: '⚠️ Sem fatura' },
+  divergencia:     { bg: '#FEF3DC', color: '#8A5A00',  label: '⚠️ Divergência' },
+  ausente_ambos:   { bg: '#FDECEA', color: '#B83232',  label: '❌ Ausente' },
 };
 
 function Badge({ status }) {
@@ -37,8 +37,8 @@ function SitBadge({ sit }) {
   const isPaga = sit.toLowerCase().includes('pag') || sit.toLowerCase().includes('liquid');
   return (
     <span style={{
-      background: isPaga ? '#ECFDF5' : '#FFFBEB',
-      color: isPaga ? '#059669' : '#D97706',
+      background: isPaga ? '#E5F5EF' : '#FEF3DC',
+      color: isPaga ? '#0A7B5C' : '#8A5A00',
       borderRadius: 4,
       padding: '1px 7px',
       fontSize: 11,
@@ -55,8 +55,8 @@ function ParcelaBadge({ parcela, totalEstimado }) {
     <span
       title={totalEstimado ? `Total estimado: R$ ${totalEstimado.toFixed(2)}` : ''}
       style={{
-        background: '#EFF6FF',
-        color: '#2563EB',
+        background: 'var(--ice)',
+        color: 'var(--primary)',
         borderRadius: 4,
         padding: '2px 6px',
         fontSize: 11,
@@ -121,8 +121,8 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
         )}
         title="Conciliar manualmente"
         style={{
-          background: matchingItem?.item._originalIdx === item._originalIdx ? '#2563EB' : '#EFF6FF',
-          color:      matchingItem?.item._originalIdx === item._originalIdx ? '#fff'    : '#2563EB',
+          background: matchingItem?.item._originalIdx === item._originalIdx ? 'var(--primary)' : 'var(--ice)',
+          color:      matchingItem?.item._originalIdx === item._originalIdx ? '#fff'    : 'var(--primary)',
           border: 'none',
           borderRadius: 5,
           padding: '3px 8px',
@@ -213,8 +213,8 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
         {onManualMatch && (qtd('ausente_erp') > 0 || qtd('ausente_fatura') > 0) && (
           <span style={{
             fontSize: 11,
-            color: '#2563EB',
-            background: '#EFF6FF',
+            color: 'var(--primary)',
+            background: 'var(--ice)',
             borderRadius: 4,
             padding: '3px 8px',
             fontWeight: 500,
@@ -227,7 +227,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
       {/* Painel de matching manual */}
       {matchingItem && (
         <div style={{
-          background: '#EFF6FF',
+          background: 'var(--ice)',
           border: '1px solid #BFDBFE',
           borderRadius: 10,
           padding: '14px 16px',
@@ -236,7 +236,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1E40AF' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>
                 Selecione o item {matchingItem.item.status === 'ausente_erp' ? 'do ERP' : 'da Fatura'} para vincular com:
               </div>
               <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
@@ -275,7 +275,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
                     textAlign: 'left',
                     transition: 'background 150ms ease',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F0F7FF'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--ice)'}
                   onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
                 >
                   <span style={{ color: '#0F172A' }}>
@@ -283,7 +283,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
                     {(op.data_erp && op.data_erp !== '—') && <span style={{ color: '#94A3B8', marginLeft: 8 }}>{op.data_erp}</span>}
                     {(op.data_fatura && op.data_fatura !== '—') && <span style={{ color: '#94A3B8', marginLeft: 8 }}>{op.data_fatura}</span>}
                   </span>
-                  <span style={{ fontWeight: 700, color: '#2563EB', whiteSpace: 'nowrap', marginLeft: 12 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap', marginLeft: 12 }}>
                     R$ {((op.valor_erp || op.valor_fatura) || 0).toFixed(2)}
                   </span>
                 </button>
@@ -320,7 +320,7 @@ export default function TabelaResultado({ itens, modo, onManualMatch }) {
                 key={i}
                 style={{
                   background: matchingItem?.item._originalIdx === item._originalIdx
-                    ? '#EFF6FF'
+                    ? 'var(--ice)'
                     : i % 2 === 0 ? '#FFFFFF' : '#FAFBFC',
                 }}
               >
