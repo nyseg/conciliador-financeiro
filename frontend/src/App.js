@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import AppLayout from './layouts/AppLayout';
 import LoginPage from './pages/LoginPage';
 import CadastroPage from './pages/CadastroPage';
 import ClientesPage from './pages/ClientesPage';
@@ -35,30 +36,20 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<CadastroPage />} />
+
+          {/* Rotas protegidas dentro do shell (sidebar + topbar) */}
           <Route
-            path="/clientes"
             element={
               <RoteiroProtegido>
-                <ClientesPage />
+                <AppLayout />
               </RoteiroProtegido>
             }
-          />
-          <Route
-            path="/clientes/:id"
-            element={
-              <RoteiroProtegido>
-                <ClientePage />
-              </RoteiroProtegido>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <RoteiroProtegido>
-                <DashboardPage />
-              </RoteiroProtegido>
-            }
-          />
+          >
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/clientes" element={<ClientesPage />} />
+            <Route path="/clientes/:id" element={<ClientePage />} />
+          </Route>
+
           <Route path="*" element={<Navigate to="/clientes" replace />} />
         </Routes>
       </BrowserRouter>

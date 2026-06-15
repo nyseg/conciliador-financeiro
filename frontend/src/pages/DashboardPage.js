@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, TrendingDown, RefreshCw, Users, ArrowLeft } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { LayoutDashboard, TrendingUp, TrendingDown, RefreshCw, Users } from 'lucide-react';
 import { listarClientes, listarConciliacoes } from '../api';
 
 function TaxaBar({ taxa }) {
@@ -31,7 +30,6 @@ function formatarPeriodo(periodo) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { analista } = useAuth();
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -85,33 +83,12 @@ export default function DashboardPage() {
   const corTaxa = taxaMedia >= 80 ? '#1D9E75' : taxaMedia >= 50 ? '#BA7517' : '#E24B4A';
 
   return (
-    <div style={s.root}>
-
-      {/* Header */}
-      <header style={s.header}>
-        <div style={s.headerLeft}>
-          <span style={s.headerIcon}>💼</span>
-          <span style={s.headerLogo}>Fincil</span>
-        </div>
-        <div style={s.headerRight}>
-          <span style={s.headerUser}>{analista?.nome}</span>
-          <button
-            onClick={() => navigate('/clientes')}
-            style={s.btnBack}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
-          >
-            <ArrowLeft size={14} /> Clientes
-          </button>
-        </div>
-      </header>
-
-      <main style={s.main}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 200ms ease' }}>
 
         {/* Título */}
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 24 }}>
           <h1 style={s.pageTitle}>
-            <LayoutDashboard size={20} style={{ verticalAlign: 'middle', marginRight: 8, color: '#2563EB' }} />
+            <LayoutDashboard size={20} style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--primary)' }} />
             Dashboard
           </h1>
           <p style={s.pageSubtitle}>Visão consolidada de todos os clientes e conciliações</p>
@@ -218,7 +195,6 @@ export default function DashboardPage() {
             )}
           </>
         )}
-      </main>
     </div>
   );
 }

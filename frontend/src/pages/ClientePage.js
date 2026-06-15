@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, TrendingDown, TrendingUp, History, Settings, Download, Eye } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import DespesasPage from './DespesasPage';
 import ReceitasPage from './ReceitasPage';
 import {
@@ -310,7 +309,6 @@ function CampoConfig({ label, value, onChange, tipo = 'text', opcoes }) {
 export default function ClientePage() {
   const { id }     = useParams();
   const navigate   = useNavigate();
-  const { analista } = useAuth();
 
   const [cliente, setCliente]         = useState(null);
   const [aba, setAba]                 = useState('despesas');
@@ -331,27 +329,25 @@ export default function ClientePage() {
   }
 
   return (
-    <div style={s.root}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 200ms ease' }}>
 
-      {/* Header */}
-      <header style={s.header} className="resp-header">
-        <div style={s.headerLeft}>
-          <button
-            onClick={() => navigate('/clientes')}
-            style={s.btnBack}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = '#E2E8F0'; }}
-          >
-            <ArrowLeft size={14} /> Clientes
-          </button>
-          <div style={s.breadcrumb}>
-            <span style={s.breadcrumbBase}>Clientes</span>
-            <span style={s.breadcrumbSep}>/</span>
-            <span style={s.breadcrumbCurrent}>{cliente.nome_fantasia || cliente.razao_social}</span>
-          </div>
+      {/* Cabeçalho da página */}
+      <div style={s.pageHead}>
+        <button
+          onClick={() => navigate('/clientes')}
+          style={s.btnBack}
+          onMouseEnter={e => { e.currentTarget.style.background = '#F0F4F9'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; }}
+        >
+          <ArrowLeft size={14} /> Clientes
+        </button>
+        <div>
+          <h1 style={s.pageTitle}>{cliente.nome_fantasia || cliente.razao_social}</h1>
+          {cliente.razao_social && cliente.nome_fantasia && (
+            <p style={s.pageSub}>{cliente.razao_social}</p>
+          )}
         </div>
-        <div style={s.headerUser}>{analista?.nome}</div>
-      </header>
+      </div>
 
       {/* Banner de processamento */}
       {processando && (
@@ -380,12 +376,12 @@ export default function ClientePage() {
               onClick={() => setAba(key)}
               style={{
                 ...s.tabBtn,
-                color: ativa ? '#2563EB' : '#94A3B8',
-                borderBottom: ativa ? '2px solid #2563EB' : '2px solid transparent',
+                color: ativa ? 'var(--primary)' : 'var(--text-3)',
+                borderBottom: ativa ? '2px solid var(--primary)' : '2px solid transparent',
                 fontWeight: ativa ? 600 : 400,
               }}
-              onMouseEnter={e => { if (!ativa) e.currentTarget.style.color = '#475569'; }}
-              onMouseLeave={e => { if (!ativa) e.currentTarget.style.color = '#94A3B8'; }}
+              onMouseEnter={e => { if (!ativa) e.currentTarget.style.color = 'var(--text-2)'; }}
+              onMouseLeave={e => { if (!ativa) e.currentTarget.style.color = 'var(--text-3)'; }}
             >
               <Icon size={15} /> {label}
               {processando === key && (
@@ -419,6 +415,13 @@ export default function ClientePage() {
 }
 
 const s = {
+  pageHead: {
+    display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18,
+  },
+  pageTitle: {
+    margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-1)', letterSpacing: '-0.3px',
+  },
+  pageSub: { margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-3)' },
   root: {
     minHeight: '100vh',
     background: '#F8FAFC',
