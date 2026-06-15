@@ -121,6 +121,12 @@ export async function login({ email, senha }) {
   return data;
 }
 
+export async function buscarMe() {
+  // Usa o mesmo `api` (interceptor de token + baseURL/proxy) — nunca localhost direto
+  const { data } = await api.get('/api/auth/me');
+  return data;
+}
+
 // ---------------------------------------------------------------------------
 // Clientes
 // ---------------------------------------------------------------------------

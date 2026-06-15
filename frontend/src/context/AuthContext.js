@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { buscarMe } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -9,14 +10,17 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (token) {
-      fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.ok ? r.json() : Promise.reject())
+      // Usa o `api` (proxy do Vercel + interceptor de token) — nunca localhost direto.
+      // Só remove o token em erro de AUTENTICAÇÃO (401/403); erro de rede mantém a sessão.
+      buscarMe()
         .then(d => setAnalista(d))
-        .catch(() => {
-          localStorage.removeItem('token');
-          setToken(null);
+        .catch(err => {
+          const status = err.response?.status;
+          if (status === 401 || status === 403) {
+            localStorage.removeItem('token');
+            setToken(null);
+          }
+          // erro de rede / cold start: mantém o token, não desloga
         })
         .finally(() => setCarregando(false));
     } else {
