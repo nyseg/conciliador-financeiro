@@ -175,8 +175,8 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
             opacity: loading ? 0.7 : 1,
             cursor: loading ? 'not-allowed' : 'pointer',
           }}
-          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1D4ED8'; }}
-          onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#2563EB'; }}
+          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--accent-l)'; }}
+          onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
         >
           {loading
             ? <><div style={s.miniSpinner} /> Processando…</>
@@ -202,9 +202,9 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
       {/* Loading */}
       {loading && (
         <div style={s.alertInfo}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BFDBFE', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BFDBFE', borderTopColor: 'var(--primary)', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1E40AF' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}>
               Analisando arquivos… <span style={{ fontWeight: 400, color: '#475569' }}>{loadingSeg}s</span>
             </div>
             <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
@@ -229,8 +229,8 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
           {/* Cards contagem */}
           <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             {[
-              { label: 'Total analisado', value: r.total_itens,  borderColor: '#2563EB', numColor: '#0F172A' },
-              { label: 'Conciliados',     value: r.conciliados,  borderColor: '#059669', numColor: '#059669' },
+              { label: 'Total analisado', value: r.total_itens,  borderColor: 'var(--primary)', numColor: '#0F172A' },
+              { label: 'Conciliados',     value: r.conciliados,  borderColor: '#0A7B5C', numColor: '#0A7B5C' },
               { label: 'Divergências',    value: r.divergencias, borderColor: '#D97706', numColor: '#D97706' },
               { label: 'Ausentes',        value: r.ausentes,     borderColor: '#DC2626', numColor: '#DC2626' },
             ].map(m => (
@@ -267,7 +267,7 @@ export default function ReceitasPage({ setProcessando, clienteId }) {
               onClick={() => exportarRelatorio(resultado)}
               style={s.btnExportar}
               onMouseEnter={e => { e.currentTarget.style.background = '#047857'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#059669'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#0A7B5C'; }}
             >
               <Download size={15} /> Exportar Excel
             </button>
@@ -327,7 +327,7 @@ const s = {
   },
   btnExecutar: {
     padding: '10px 22px',
-    background: '#2563EB',
+    background: 'var(--accent)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -362,7 +362,7 @@ const s = {
     color: '#92400E',
   },
   alertInfo: {
-    background: '#EFF6FF',
+    background: 'var(--ice)',
     border: '1px solid #BFDBFE',
     borderRadius: 8,
     padding: '14px 16px',
@@ -408,7 +408,7 @@ const s = {
   },
   btnExportar: {
     padding: '9px 20px',
-    background: '#059669',
+    background: '#0A7B5C',
     color: '#fff',
     border: 'none',
     borderRadius: 8,

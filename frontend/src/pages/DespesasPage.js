@@ -413,8 +413,8 @@ export default function DespesasPage({ setProcessando, clienteId }) {
             opacity: loading ? 0.7 : 1,
             cursor: loading ? 'not-allowed' : 'pointer',
           }}
-          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1D4ED8'; }}
-          onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#2563EB'; }}
+          onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--accent-l)'; }}
+          onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
         >
           {loading
             ? <><div style={s.miniSpinner} /> Processando…</>
@@ -440,9 +440,9 @@ export default function DespesasPage({ setProcessando, clienteId }) {
       {/* Loading */}
       {loading && (
         <div style={s.alertInfo}>
-          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BFDBFE', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #BFDBFE', borderTopColor: 'var(--primary)', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1E40AF' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}>
               Analisando arquivos… <span style={{ fontWeight: 400, color: '#475569' }}>{loadingSeg}s</span>
             </div>
             <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>
@@ -467,8 +467,8 @@ export default function DespesasPage({ setProcessando, clienteId }) {
           {/* Cards de resumo — border-left colorida */}
           <div className="resp-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             {[
-              { label: 'Total analisado', value: r.total_itens,  borderColor: '#2563EB', numColor: '#0F172A' },
-              { label: 'Conciliados',     value: r.conciliados,  borderColor: '#059669', numColor: '#059669' },
+              { label: 'Total analisado', value: r.total_itens,  borderColor: 'var(--primary)', numColor: '#0F172A' },
+              { label: 'Conciliados',     value: r.conciliados,  borderColor: '#0A7B5C', numColor: '#0A7B5C' },
               { label: 'Sem ERP',         value: r.sem_erp,      borderColor: '#DC2626', numColor: '#DC2626' },
               { label: 'Sem fatura',      value: r.sem_fatura,   borderColor: '#D97706', numColor: '#D97706' },
             ].map(m => (
@@ -482,20 +482,20 @@ export default function DespesasPage({ setProcessando, clienteId }) {
           {(r.parcelas_detectadas > 0 || r.agrupados_categoria > 0) && (
             <div className="resp-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 14 }}>
               {r.parcelas_detectadas > 0 && (
-                <div style={{ ...s.statCard, borderLeftColor: '#2563EB', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ ...s.statCard, borderLeftColor: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 20 }}>📋</span>
                   <div>
                     <div style={s.statLabel}>Parcelas detectadas e conciliadas</div>
-                    <div style={{ ...s.statNum, color: '#2563EB' }}>{r.parcelas_detectadas}</div>
+                    <div style={{ ...s.statNum, color: 'var(--primary)' }}>{r.parcelas_detectadas}</div>
                   </div>
                 </div>
               )}
               {r.agrupados_categoria > 0 && (
-                <div style={{ ...s.statCard, borderLeftColor: '#059669', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ ...s.statCard, borderLeftColor: '#0A7B5C', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 20 }}>📦</span>
                   <div>
                     <div style={s.statLabel}>Itens conciliados por categoria</div>
-                    <div style={{ ...s.statNum, color: '#059669' }}>{r.agrupados_categoria}</div>
+                    <div style={{ ...s.statNum, color: '#0A7B5C' }}>{r.agrupados_categoria}</div>
                   </div>
                 </div>
               )}
@@ -531,7 +531,7 @@ export default function DespesasPage({ setProcessando, clienteId }) {
               border: `1px solid ${r.validacao_agrupamento.ok ? '#A7F3D0' : '#FECACA'}`,
               borderRadius: 8, padding: '12px 16px', marginBottom: 16
             }}>
-              <div style={{ fontWeight: 600, fontSize: 13, color: r.validacao_agrupamento.ok ? '#059669' : '#DC2626' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: r.validacao_agrupamento.ok ? '#0A7B5C' : '#DC2626' }}>
                 {r.validacao_agrupamento.ok ? '✅ Agrupamento correto — pode realizar o pagamento' : '❌ Agrupamento com diferença — revisar lançamentos'}
               </div>
               <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
@@ -555,7 +555,7 @@ export default function DespesasPage({ setProcessando, clienteId }) {
               onClick={() => exportarRelatorio(resultado)}
               style={s.btnExportar}
               onMouseEnter={e => { e.currentTarget.style.background = '#047857'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#059669'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#0A7B5C'; }}
             >
               <Download size={15} /> Exportar Excel
             </button>
@@ -646,7 +646,7 @@ const s = {
   },
   btnSalvarPerfil: {
     padding: '7px 16px',
-    background: '#2563EB',
+    background: 'var(--primary)',
     color: '#fff',
     border: 'none',
     borderRadius: 6,
@@ -654,13 +654,13 @@ const s = {
     fontWeight: 600,
   },
   infoBox: {
-    background: '#EFF6FF',
+    background: 'var(--ice)',
     border: '1px solid #BFDBFE',
     borderRadius: 8,
     padding: '10px 14px',
     marginBottom: 8,
     fontSize: 12,
-    color: '#1E40AF',
+    color: 'var(--primary)',
     display: 'flex',
     alignItems: 'flex-start',
     gap: 10,
@@ -668,7 +668,7 @@ const s = {
   },
   btnExtrair: {
     padding: '6px 14px',
-    background: '#059669',
+    background: '#0A7B5C',
     color: '#fff',
     border: 'none',
     borderRadius: 6,
@@ -681,7 +681,7 @@ const s = {
   },
   mapperLabel: {
     fontSize: 12,
-    color: '#2563EB',
+    color: 'var(--primary)',
     fontWeight: 600,
     marginBottom: 4,
     display: 'flex',
@@ -707,7 +707,7 @@ const s = {
   },
   btnExecutar: {
     padding: '10px 22px',
-    background: '#2563EB',
+    background: 'var(--accent)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -742,7 +742,7 @@ const s = {
     color: '#92400E',
   },
   alertInfo: {
-    background: '#EFF6FF',
+    background: 'var(--ice)',
     border: '1px solid #BFDBFE',
     borderRadius: 8,
     padding: '14px 16px',
@@ -788,7 +788,7 @@ const s = {
   },
   btnExportar: {
     padding: '9px 20px',
-    background: '#059669',
+    background: '#0A7B5C',
     color: '#fff',
     border: 'none',
     borderRadius: 8,

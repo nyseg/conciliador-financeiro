@@ -4,7 +4,7 @@ import { LayoutDashboard, TrendingUp, TrendingDown, RefreshCw, Users } from 'luc
 import { listarClientes, listarConciliacoes } from '../api';
 
 function TaxaBar({ taxa }) {
-  const cor = taxa >= 80 ? '#1D9E75' : taxa >= 50 ? '#BA7517' : '#E24B4A';
+  const cor = taxa >= 80 ? '#0A7B5C' : taxa >= 50 ? '#8A5A00' : '#B83232';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
       <div style={{ width: 64, height: 6, background: '#E8E8EE', borderRadius: 3, overflow: 'hidden' }}>
@@ -80,7 +80,7 @@ export default function DashboardPage() {
   const qtdReceitas = historico.filter(h => h.tipo === 'receitas').length;
   const ultima = historico[0];
 
-  const corTaxa = taxaMedia >= 80 ? '#1D9E75' : taxaMedia >= 50 ? '#BA7517' : '#E24B4A';
+  const corTaxa = taxaMedia >= 80 ? '#0A7B5C' : taxaMedia >= 50 ? '#8A5A00' : '#B83232';
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 200ms ease' }}>
@@ -108,8 +108,8 @@ export default function DashboardPage() {
                 { label: 'Total de execuções', value: total,          color: '#378ADD', Icon: RefreshCw  },
                 { label: 'Taxa média conciliada', value: `${taxaMedia}%`, color: corTaxa, Icon: null    },
                 { label: 'Clientes',             value: clientes.length, color: '#7C3AED', Icon: Users  },
-                { label: 'Despesas',             value: qtdDespesas,  color: '#E24B4A', Icon: TrendingDown },
-                { label: 'Receitas',             value: qtdReceitas,  color: '#1D9E75', Icon: TrendingUp   },
+                { label: 'Despesas',             value: qtdDespesas,  color: '#B83232', Icon: TrendingDown },
+                { label: 'Receitas',             value: qtdReceitas,  color: '#0A7B5C', Icon: TrendingUp   },
               ].map(({ label, value, color, Icon }) => (
                 <div key={label} style={s.metricCard}>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -126,7 +126,7 @@ export default function DashboardPage() {
                 <span style={{ fontWeight: 600, color: '#1A5FA8' }}>Última conciliação: </span>
                 <span style={{ color: '#333' }}>
                   <span
-                    style={{ color: '#2563EB', cursor: 'pointer', fontWeight: 500 }}
+                    style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 500 }}
                     onClick={() => navigate(`/clientes/${ultima.cliente_id}`)}
                   >
                     {ultima.cliente_nome}
@@ -168,15 +168,15 @@ export default function DashboardPage() {
                           key={h.id}
                           style={{ background: i % 2 === 0 ? '#fff' : '#FAFAFA', cursor: 'pointer', transition: 'background 100ms' }}
                           onClick={() => navigate(`/clientes/${h.cliente_id}`)}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#EFF6FF'; }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--ice)'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#FAFAFA'; }}
                         >
                           <td style={s.td}>{formatarData(h.data_execucao)}</td>
-                          <td style={{ ...s.td, fontWeight: 500, color: '#2563EB' }}>{h.cliente_nome}</td>
+                          <td style={{ ...s.td, fontWeight: 500, color: 'var(--primary)' }}>{h.cliente_nome}</td>
                           <td style={s.td}>
                             <span style={{
-                              background: h.tipo === 'despesas' ? '#FCEBEB' : '#E1F5EE',
-                              color: h.tipo === 'despesas' ? '#A32D2D' : '#0F6E56',
+                              background: h.tipo === 'despesas' ? '#FDECEA' : '#E5F5EF',
+                              color: h.tipo === 'despesas' ? '#B83232' : '#0A7B5C',
                               borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 700,
                             }}>
                               {h.tipo === 'despesas' ? 'Despesas' : 'Receitas'}
@@ -184,7 +184,7 @@ export default function DashboardPage() {
                           </td>
                           <td style={s.td}>{formatarPeriodo(h.periodo)}</td>
                           <td style={{ ...s.td, fontWeight: 600 }}>{total_itens}</td>
-                          <td style={{ ...s.td, fontWeight: 600, color: '#1D9E75' }}>{conciliados}</td>
+                          <td style={{ ...s.td, fontWeight: 600, color: '#0A7B5C' }}>{conciliados}</td>
                           <td style={s.td}><TaxaBar taxa={taxa} /></td>
                         </tr>
                       );
@@ -226,7 +226,7 @@ const s = {
   headerLogo: {
     fontSize: 17,
     fontWeight: 700,
-    color: '#2563EB',
+    color: 'var(--primary)',
     letterSpacing: '-0.3px',
   },
   headerRight: {
@@ -286,8 +286,8 @@ const s = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
   },
   lastExec: {
-    background: '#F0F7FF',
-    border: '1px solid #BDD4F7',
+    background: 'var(--ice)',
+    border: '1px solid var(--border)',
     borderRadius: 10,
     padding: '12px 16px',
     marginBottom: 20,
