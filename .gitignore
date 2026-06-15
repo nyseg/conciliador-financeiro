@@ -28,3 +28,6 @@ Thumbs.db
 
 # Excel gerado
 conciliacao.xlsx
+
+# Worktrees temporários de agentes (não versionar)
+.claude/worktrees/
